@@ -32,7 +32,7 @@ jobs:
           # If there is no branch, create one using the code:
           # Usually when we initing a git repo, a master branch is generated automatically. 
           # git init --initial-branch=main 
-          git remote set-url origin "https://oauth2:$TOKEN@git.gvk.idi.ntnu.no:course/prog2005/prog2005-2023-workspace/even/assignment2.git"
+          git remote set-url origin "https://oauth2:$TOKEN@git.gvk.idi.ntnu.no/course/prog2005/prog2005-2023-workspace/even/assignment2.git"
           # git remote rename origin old-origin
           # git push -u origin main
           # git config pull.rebase false # You have divergent branches and need to specify how to reconcile them.
