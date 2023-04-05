@@ -3,9 +3,13 @@ package handlers
 import (
 	"Assignment2/consts"
 	"encoding/json"
-	"fmt"
+	"log"
 	"net/http"
+	"time"
 )
+
+// StartTime for calculating service uptime
+var StartTime = time.Now()
 
 // ServiceStatus for storage of status data before encoding to json
 type ServiceStatus struct {
@@ -18,31 +22,37 @@ type ServiceStatus struct {
 
 // HandlerStatus Handler for the status endpoint
 func HandlerStatus(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("content-type", "application/json")
 
-	serviceStatus := ServiceStatus{
-		CountriesApi: StatusClient(consts.CountriesUrl),
-		EnergyApi:    StatusClient(consts.EnergyUrl),
-		Webhooks:     countWebHooks(),
-		Version:      consts.Version,
-		Uptime:       getUptime(),
-	}
-	// Response to user:
-	encoder := json.NewEncoder(w)
-	err := encoder.Encode(serviceStatus)
-	if err != nil {
-		http.Error(w, "Error while encoding to json", http.StatusInternalServerError)
+	switch r.Method {
+	case http.MethodGet:
+		w.Header().Set("content-type", "application/json")
+
+		serviceStatus := ServiceStatus{
+			CountriesApi: statusClient(consts.CountriesUrl),
+			EnergyApi:    statusClient(consts.EnergyUrl),
+			Webhooks:     countWebhooks(),
+			Version:      consts.Version,
+			Uptime:       getUptime(),
+		}
+		// json response to user:
+		encoder := json.NewEncoder(w)
+		err := encoder.Encode(serviceStatus)
+		if err != nil {
+			http.Error(w, "Error while encoding to json", http.StatusInternalServerError)
+		}
+	default:
+		http.Error(w, "http method not supported.", http.StatusMethodNotAllowed)
 	}
 
 }
 
-// StatusClient Sends requests to 3rd party services
-func StatusClient(url string) (status int) {
-	status = http.StatusInternalServerError
+// statusClient sends requests to 3rd party services
+func statusClient(url string) (status int) {
+	status = http.StatusInternalServerError // default to 500
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		fmt.Println("Error while creating status request.")
+		log.Println("Error while creating status request.")
 		return status
 	}
 
@@ -53,7 +63,7 @@ func StatusClient(url string) (status int) {
 	// Request/response:
 	res, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Unable to send request.")
+		log.Println("Unable to send request.")
 		return status
 	}
 
@@ -61,12 +71,13 @@ func StatusClient(url string) (status int) {
 	return status
 }
 
-// getUptime returns the uptime since last service restart
+// getUptime returns uptime since last service restart
 func getUptime() int {
-	return 0
+	return int(time.Now().Sub(StartTime).Seconds())
 }
 
-// countWebhooks returns the number of stored webhooks in Firebase
-func countWebHooks() int {
+// countWebhooks returns number of stored webhooks in Firebase
+func countWebhooks() int {
 	return 0
+	// TODO implement body
 }
