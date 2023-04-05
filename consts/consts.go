@@ -12,5 +12,6 @@ const Version = "v1"
 const DefaultPort = "10000"
 
 // External service urls
-const CountriesPath = "http://129.241.150.113:8080/v3.1/"
-const EnergyPath = ""
+
+const CountriesUrl = "http://129.241.150.113:8080/"
+const EnergyUrl = "" // TODO: setup firebase to get valid url
