@@ -14,4 +14,6 @@ const DefaultPort = "10000"
 // External service urls
 
 const CountriesUrl = "http://129.241.150.113:8080/"
-const EnergyUrl = "" // TODO: setup firebase to get valid url
+
+// const EnergyUrl = "" // TODO: setup firebase to get valid url
+const EnergyUrl = "http://example.com"
