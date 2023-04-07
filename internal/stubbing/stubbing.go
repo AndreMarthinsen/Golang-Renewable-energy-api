@@ -10,14 +10,14 @@ import (
 	"net/http"
 	"os"
 	"strings"
-
 	"sync"
 )
 
 const assetPrefix = "./internal/assets/"
 const codesPrefix = "codes="
+const rootPath = "/"
 
-// For futurue reference https://www.iban.com/country-codes
+// For future reference https://www.iban.com/country-codes
 const cc3aVietNam = "VNM"
 const cc3aNorthKorea = "PRK"
 const cc3aSouthKorea = "KOR"
@@ -26,11 +26,13 @@ const cc3aSweden = "SWE"
 const cc3aFinland = "FIN"
 const cc3aRussia = "RUS"
 
+// of interest as TJK is not in energy dataset, but its neighbouring countries are.
 const cc3aTajikistan = "TJK" // no energy data
 const cc3aChina = "CHN"      // neighbour of Tajikistan, does exist
 const cc3aUzbekistan = "UZB" // same as above
 
 // parseFile parses a file specified by filename
+//
 // On failure: Calls log.Fatal detailing the error.
 // On success: Returns the read file as a byte slice.
 func parseFile(filePath string) []byte {
@@ -41,40 +43,76 @@ func parseFile(filePath string) []byte {
 	return file
 }
 
-func StubHandler(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path
-	switch path {
-	case consts.CountryCodePath:
-		{
-			codes := strings.FieldsFunc(
-				r.URL.Query().Get("codes"),
-				func(c rune) bool { return c == ',' },
-			)
-			response, err := GetJsonByCountryCode(codes)
-			if err != nil {
-				http.Error(w, "[]", http.StatusNotFound)
+// stubHandler simulates interacting with the third party RESTCountries API by returning appropriate
+// json bodies based on input requests. Currently only simulates appropriate behaviour for the /alpha/
+// endpoint using a ?codes=xxx,xxx,xxx query.
+//
+// debug == true: Extra information is provided in log when handler is called.
+//
+// Example:
+// http://localhost:8888/v3.1/alpha/?codes=NOR,KOR
+// Returns json file containing data for Norway and South Korea
+func stubHandler(debug bool) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("content-type", "application/json")
+		path := r.URL.Path
+		if debug {
+			log.Println("Stub handler called with path " + r.URL.Path)
+		}
+		switch path { // Uses switch for easy expansion
+		case consts.CountryCodePath:
+			{
+				codes := strings.FieldsFunc(
+					r.URL.Query().Get("codes"),
+					func(c rune) bool { return c == ',' },
+				)
+				if !validateCountryCodes(codes) {
+					response := "{\"status\":400,\"message\":\"Bad Request\"}"
+					if _, err := fmt.Fprint(w, response); err != nil {
+						log.Fatal("stub handler failed to return response body to client.")
+					}
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				if debug {
+					log.Println("stub debug: cca3 queries: ", codes)
+				}
+				response, err := getJsonByCountryCode(codes)
+				if err != nil {
+					response = "{\"status\":404,\"message\":\"Not Found\"}"
+					w.WriteHeader(http.StatusNotFound)
+				} else {
+					w.WriteHeader(http.StatusOK)
+				}
+				if _, err = fmt.Fprint(w, response); err != nil {
+					log.Fatal("stub handler failed to return response body to client.")
+				}
 				return
 			}
-			fmt.Println(w, response)
-			return
-		}
-	default:
-		{
-			//TODO: 404 message here?
+		default:
+			{
+				if debug {
+					log.Println("Path: " + r.URL.Path + " not currently supported by stubbing service.")
+				}
+				http.Error(w, "Not a recognized path for stubbing", http.StatusNotImplemented)
+			}
 		}
 	}
 }
 
-// GetJsonByCountryCode takes a slice of country codes, returning all results
-// for those country codes
-func GetJsonByCountryCode(countryCodes []string) (string, error) {
+// getJsonByCountryCode takes a slice of country codes, returning all results
+// for those country codes.
+// WARNING: For any simulated response there must be a .json file in the /internal/assets directory.
+// For the simulation of invalid requests, use an empty .json file, such as codes=INV.json
+// Attempting to read a non-existing file will intentionally crash the application.
+func getJsonByCountryCode(countryCodes []string) (string, error) {
 	countryData := make([]string, 0)
 	for _, code := range countryCodes {
 		data := string(parseFile(assetPrefix + codesPrefix + code + ".json"))
 		if len(data) >= 2 {
 			data = strings.TrimPrefix(strings.TrimSuffix(data, "]"), "[")
+			countryData = append(countryData, data)
 		}
-		countryData = append(countryData, data)
 	}
 	if len(countryData) == 0 {
 		return "", errors.New("failed to find any match on provided country codes")
@@ -82,29 +120,27 @@ func GetJsonByCountryCode(countryCodes []string) (string, error) {
 	return "[" + strings.Join(countryData, ",") + "]", nil
 }
 
-func stubHandlerUniversities(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("UniStubHandler called")
-	switch r.Method {
-	case http.MethodGet:
-
-		w.Header().Add("content-type", "application/json")
-		output := parseFile("./internal/assets/norwegianScience.json")
-
-		_, err := fmt.Fprint(w, string(output))
-		if err != nil {
-			log.Fatal("error in StubUniHandler")
-		}
-		break
-	default:
-		http.Error(w, "Method not supported", http.StatusNotImplemented)
+// validateCountryCodes verifies that all country codes are of length 2-3 and that the slice
+// isn't empty.
+func validateCountryCodes(countryCodes []string) bool {
+	if len(countryCodes) == 0 {
+		return false
 	}
+	for _, code := range countryCodes {
+		if len(code) != 2 && len(code) != 3 {
+			return false
+		}
+	}
+	return true
 }
 
-func STUBServer(group *sync.WaitGroup, port string) {
+// RunSTUBServer runs a stubbing service using the net/http module.
+// See stubHandler for closer detail on what stubbing is provided by the service.
+func RunSTUBServer(group *sync.WaitGroup, port string) {
 	defer group.Done()
 
 	handlers := map[string]func(http.ResponseWriter, *http.Request){
-		consts.StubDomain: StubHandler,
+		rootPath: stubHandler(true),
 	}
 
 	for path, function := range handlers {
