@@ -27,6 +27,7 @@ type country struct {
 	Borders []string `json:"borders"`
 }
 
+// TestHttpStubbing tests the StubHandler of the stub service.
 func TestHttpStubbing(t *testing.T) {
 	handler := stubbing.StubHandler(false)
 	server := httptest.NewServer(http.HandlerFunc(handler))
