@@ -43,7 +43,7 @@ func parseFile(filePath string) []byte {
 	return file
 }
 
-// stubHandler simulates interacting with the third party RESTCountries API by returning appropriate
+// StubHandler simulates interacting with the third party RESTCountries API by returning appropriate
 // json bodies based on input requests. Currently only simulates appropriate behaviour for the /alpha/
 // endpoint using a ?codes=xxx,xxx,xxx query.
 //
@@ -52,7 +52,7 @@ func parseFile(filePath string) []byte {
 // Example:
 // http://localhost:8888/v3.1/alpha/?codes=NOR,KOR
 // Returns json file containing data for Norway and South Korea
-func stubHandler(debug bool) func(http.ResponseWriter, *http.Request) {
+func StubHandler(debug bool) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("content-type", "application/json")
 		path := r.URL.Path
@@ -66,16 +66,17 @@ func stubHandler(debug bool) func(http.ResponseWriter, *http.Request) {
 					r.URL.Query().Get("codes"),
 					func(c rune) bool { return c == ',' },
 				)
-				if !validateCountryCodes(codes) {
+				if debug {
+					log.Println("stub debug: cca3 queries prior to filtering: ", codes)
+				}
+				codes = filterCountryCodes(codes)
+				if len(codes) == 0 { // Indicates no codes of valid length [2, 3]
 					response := "{\"status\":400,\"message\":\"Bad Request\"}"
 					if _, err := fmt.Fprint(w, response); err != nil {
 						log.Fatal("stub handler failed to return response body to client.")
 					}
 					w.WriteHeader(http.StatusBadRequest)
 					return
-				}
-				if debug {
-					log.Println("stub debug: cca3 queries: ", codes)
 				}
 				response, err := getJsonByCountryCode(codes)
 				if err != nil {
@@ -120,27 +121,26 @@ func getJsonByCountryCode(countryCodes []string) (string, error) {
 	return "[" + strings.Join(countryData, ",") + "]", nil
 }
 
-// validateCountryCodes verifies that all country codes are of length 2-3 and that the slice
-// isn't empty.
-func validateCountryCodes(countryCodes []string) bool {
-	if len(countryCodes) == 0 {
-		return false
-	}
+// filterCountryCodes filters out any code that is not 2 or 3 characters long as these result
+// in being ignored by RESTCountries if sent along with other countries, or resulting in a
+// 400 statusBadRequest if the only code.
+func filterCountryCodes(countryCodes []string) []string {
+	filteredCodes := make([]string, 0)
 	for _, code := range countryCodes {
-		if len(code) != 2 && len(code) != 3 {
-			return false
+		if len(code) == 2 || len(code) == 3 {
+			filteredCodes = append(filteredCodes, code)
 		}
 	}
-	return true
+	return filteredCodes
 }
 
 // RunSTUBServer runs a stubbing service using the net/http module.
-// See stubHandler for closer detail on what stubbing is provided by the service.
+// See StubHandler for closer detail on what stubbing is provided by the service.
 func RunSTUBServer(group *sync.WaitGroup, port string) {
 	defer group.Done()
 
 	handlers := map[string]func(http.ResponseWriter, *http.Request){
-		rootPath: stubHandler(true),
+		rootPath: StubHandler(true),
 	}
 
 	for path, function := range handlers {
