@@ -54,6 +54,7 @@ type Config struct {
 
 func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struct{},
 	cleanupDone chan<- struct{}) {
+
 	if cfg.DebugMode {
 		log.Println("Cache worker: running")
 	}
@@ -65,7 +66,7 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 	localCache, err := loadCacheFromDB(cfg, cfg.PrimaryCache)
 	if err != nil {
 		log.Println("Cache worker: failed to load primary cache")
-		log.Println("^ details:", err)
+		log.Println("^ details: ", err)
 	}
 	if cfg.DebugMode {
 		log.Println("Cache worker: local cache loaded with", len(localCache), "entries")
@@ -73,7 +74,7 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 	err = createCacheInDB(cfg, "TestStorage", localCache)
 	if err != nil {
 		log.Println("Cache worker: failed to create new cache file in DB")
-		log.Println("^ details:", err)
+		log.Println("^ details: ", err)
 	}
 	previousUpdate := time.Now()
 
@@ -195,11 +196,9 @@ func createCacheInDB(cfg *Config, cacheID string, cache map[string]CacheEntry) e
 	for _, val := range cache {
 		c.CacheEntries = append(c.CacheEntries, val)
 	}
-	res, _, err := cfg.FirestoreClient.Collection(cfg.CachingCollection).Add(*cfg.Ctx, cacheID)
+	ref := cfg.FirestoreClient.Collection(cfg.CachingCollection).Doc(cacheID)
+	_, err := ref.Set(*cfg.Ctx, &c)
 	if err != nil {
-		return err
-	}
-	if _, err = res.Set(*cfg.Ctx, &c); err != nil {
 		return err
 	}
 	return nil
@@ -213,7 +212,9 @@ func updateCacheInDB(cfg *Config, cacheID string, newEntries map[string]CacheEnt
 	return nil
 }
 
-func purgeStaleEntries(cfg *Config, cacheID string, oldCache map[string]CacheEntry, timeLimit time.Duration) (map[string]CacheEntry, error) {
+func purgeStaleEntries(cfg *Config, cacheID string, oldCache map[string]CacheEntry,
+	timeLimit time.Duration) (map[string]CacheEntry, error) {
+
 	newCache := make(map[string]CacheEntry, 0)
 	for key, val := range oldCache {
 		if time.Since(val.LastUpdated) < timeLimit {
