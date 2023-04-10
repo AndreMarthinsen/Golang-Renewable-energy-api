@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 )
 
 var wg sync.WaitGroup
@@ -44,6 +45,7 @@ func main() {
 
 	config := caching.Config{
 		CachePushRate:     5.0,
+		CacheTimeLimit:    2 * time.Hour,
 		DebugMode:         true,
 		DevelopmentMode:   true,
 		Ctx:               &ctx,

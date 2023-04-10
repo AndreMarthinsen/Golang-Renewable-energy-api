@@ -44,6 +44,7 @@ func (entry *CacheEntry) toCountryBorder() CountryBorder {
 
 type Config struct {
 	CachePushRate     float64
+	CacheTimeLimit    time.Duration
 	DebugMode         bool
 	DevelopmentMode   bool
 	Ctx               *context.Context
@@ -70,6 +71,11 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 	if cfg.DebugMode {
 		log.Println("Cache worker: local cache loaded with", len(localCache), "entries")
 	}
+	localCache, err = purgeStaleEntries(cfg, "PurgeTest", localCache)
+	if err != nil {
+		log.Println("Cache worker: failed to purge old entries")
+		log.Println("^ details: ", err)
+	}
 	err = createCacheInDB(cfg, "TestStorage", localCache)
 	if err != nil {
 		log.Println("Cache worker: failed to create new cache file in DB")
@@ -88,6 +94,7 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 		default:
 		} // Updates external DB with a given interval
 		if time.Since(previousUpdate).Seconds() >= cfg.CachePushRate {
+			//TODO: Update external DB
 			previousUpdate = time.Now()
 		}
 		for {
@@ -201,17 +208,17 @@ func updateCacheInDB(cfg *Config, cacheID string, newEntries map[string]CacheEnt
 	return nil
 }
 
-func purgeStaleEntries(cfg *Config, cacheID string, oldCache map[string]CacheEntry,
-	timeLimit time.Duration) (map[string]CacheEntry, error) {
+func purgeStaleEntries(cfg *Config, cacheID string, oldCache map[string]CacheEntry) (map[string]CacheEntry, error) {
 
 	newCache := make(map[string]CacheEntry, 0)
 	for key, val := range oldCache {
-		if time.Since(val.LastUpdated) < timeLimit {
+		if time.Since(val.LastUpdated) < cfg.CacheTimeLimit {
 			val.LastUpdated = time.Now()
 			newCache[key] = val
 		}
 	}
-	_, err := cfg.FirestoreClient.Collection(cfg.CachingCollection).Doc(cacheID).Set(*cfg.Ctx, newCache, firestore.MergeAll)
+	ref := cfg.FirestoreClient.Collection(cfg.CachingCollection).Doc(cacheID)
+	_, err := ref.Set(*cfg.Ctx, newCache, firestore.MergeAll)
 	if err != nil {
 		return nil, err
 	}
