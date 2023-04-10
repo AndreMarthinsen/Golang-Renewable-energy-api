@@ -12,11 +12,11 @@ var StartTime = time.Now()
 
 // ServiceStatus for storage of status data before encoding to json
 type ServiceStatus struct {
-	CountriesApi string `json:"countries_api"`
-	EnergyApi    string `json:"notification_db"`
-	Webhooks     int    `json:"webhooks"`
-	Version      string `json:"version"`
-	Uptime       int    `json:"uptime"`
+	CountriesApi    string `json:"countries_api"`
+	NotificationsDb string `json:"notification_db"`
+	Webhooks        int    `json:"webhooks"`
+	Version         string `json:"version"`
+	Uptime          int    `json:"uptime"`
 }
 
 // HandlerStatus Handler for the status endpoint
@@ -30,17 +30,17 @@ func HandlerStatus(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Error while handling request.", http.StatusInternalServerError)
 			return
 		}
-		energy, err := util.GetDomainStatus(consts.EnergyUrl)
+		energy, err := util.GetDomainStatus(consts.NotificationsDbUrl)
 		if err != nil {
 			http.Error(w, "Error while handling request.", http.StatusInternalServerError)
 			return
 		}
 		serviceStatus := ServiceStatus{
-			CountriesApi: countries,
-			EnergyApi:    energy,
-			Webhooks:     countWebhooks(),
-			Version:      consts.Version,
-			Uptime:       getUptime(),
+			CountriesApi:    countries,
+			NotificationsDb: energy,
+			Webhooks:        countWebhooks(),
+			Version:         consts.Version,
+			Uptime:          getUptime(),
 		}
 		// json response to user:
 		util.EncodeAndWriteResponse(&w, serviceStatus)

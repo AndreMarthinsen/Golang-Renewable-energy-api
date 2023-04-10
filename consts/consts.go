@@ -15,5 +15,5 @@ const DefaultPort = "10000"
 
 const CountriesUrl = "http://129.241.150.113:8080/"
 
-// const EnergyUrl = "" // TODO: setup firebase to get valid url
-const EnergyUrl = "http://example.com"
+// const NotificationsDbUrl = "" // TODO: setup firebase to get valid url
+const NotificationsDbUrl = "http://example.com"
