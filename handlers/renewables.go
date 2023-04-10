@@ -9,7 +9,6 @@ import (
 
 const Current = "current"
 const History = "history"
-const CountryPath = "http://129.241.150.113:8080/v3.1/"
 
 // HandlerRenew Handler for the renewables endpoint: this checks if the request is GET, and calls the correct funtion
 // for current renewable percentage or historical renewable percentage
@@ -18,7 +17,11 @@ func HandlerRenew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed, only GET requests are supported", http.StatusNotImplemented)
 	}
 	path := util.FragmentsFromPath(r.URL.Path, consts.RenewablesPath)
+	query := ""
 	log.Println(path)
+	if r.URL.RawQuery != nil {
+		query = r.URL.RawQuery
+	}
 	//TODO Implement handler for historical renewable percentages
 	switch path[0] {
 	case Current: handlerCurrent(w, r, path)
