@@ -2,8 +2,12 @@ package main
 
 import (
 	"Assignment2/consts"
+	caching "Assignment2/firebase"
 	"Assignment2/handlers"
 	"Assignment2/internal/stubbing"
+	"context"
+	firebase "firebase.google.com/go"
+	"google.golang.org/api/option"
 	"log"
 	"net/http"
 	"os"
@@ -25,6 +29,39 @@ func main() {
 		wg.Add(1)
 		go stubbing.RunSTUBServer(&wg, consts.StubPort)
 	}
+
+	ctx := context.Background()
+	opt := option.WithCredentialsFile("./cmd/sha.json")
+	app, err := firebase.NewApp(ctx, nil, opt)
+	if err != nil {
+		log.Fatal("failed to to create new app")
+	}
+
+	client, err := app.Firestore(ctx)
+	if err != nil {
+		log.Fatal("Failed to set up firebase client")
+	}
+
+	config := caching.Config{
+		CachePushRate:     5.0,
+		DebugMode:         true,
+		DevelopmentMode:   true,
+		Ctx:               &ctx,
+		FirestoreClient:   client,
+		CachingCollection: "Caches",
+		PrimaryCache:      "TestCache",
+	}
+
+	requestChannel := make(chan caching.CacheRequest)
+	stopSignal := make(chan struct{})
+	doneSignal := make(chan struct{})
+
+	go caching.RunCacheWorker(&config, requestChannel, stopSignal, doneSignal)
+
+	defer func() { // TODO: Just use a wait group, if that's better
+		stopSignal <- struct{}{}
+		<-doneSignal
+	}()
 
 	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew)
 	http.HandleFunc(consts.NotificationPath, handlers.HandlerNotification)
