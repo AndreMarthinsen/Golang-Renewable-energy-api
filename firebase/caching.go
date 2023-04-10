@@ -1,11 +1,12 @@
 package firebase
 
 import (
+	"Assignment2/consts"
 	"Assignment2/util"
 	"encoding/json"
-	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -28,34 +29,13 @@ type CountryBorder struct {
 	Borders []string `json:"borders"`
 }
 
-func handleMiss(client *http.Client, method string, countries string, target interface{}) bool {
-	request, err := http.NewRequest(method, consts., nil)
-	if err != nil {
-		log.Println("Cache Worker failed to create request.")
-		return false
-	}
-
-	response, err := handler.Client.Do(request)
-	if err != nil {
-		http.Error(*handler.Writer, "", http.StatusInternalServerError)
-		return handler.Name + "request to" + request.URL.Path + " failed", err
-	}
-
-	decoder := json.NewDecoder(response.Body)
-	if err = decoder.Decode(target); err != nil {
-		http.Error(*handler.Writer, "", http.StatusInternalServerError)
-		return handler.Name + "failed to decode", err
-	}
-	return "", nil
-}
-
 func CacheWorker(debug bool, updateFrequency float64, requests <-chan CacheRequest,
 	stop <-chan struct{}, cleanupDone chan<- struct{}) {
 
 	localCache := make(map[string]string, 0)
 	cacheMisses := make([]CacheRequest, 0)
 	client := http.Client{}
-	context := util.HandlerContext{"Cache Worker", }
+	context := util.HandlerContext{"Cache Worker"}
 
 	updateDB := func() {}
 	previousUpdate := time.Now()
@@ -91,8 +71,25 @@ func CacheWorker(debug bool, updateFrequency float64, requests <-chan CacheReque
 						return
 					}
 				default:
+					missedCountries := make(map[string]int8) // int serves no purpose
 					for miss := range cacheMisses {
+						missedCountries
+					}
+					for miss := range cacheMisses {
+						joinedCountryCodes := strings.Join(countries, ",")
+						request, err := http.NewRequest(method, consts.StubDomain+consts.CountryCodePath+joinedCountryCodes, nil)
+						if err != nil {
+							log.Println("Cache Worker failed to create request.")
+						}
+						response, err := client.Do(request)
+						if err != nil {
+							log.Println("cache worked failed to do request")
+						}
 
+						decoder := json.NewDecoder(response.Body)
+						if err = decoder.Decode(target); err != nil {
+
+						}
 						util.handleMiss()
 					}
 				}
