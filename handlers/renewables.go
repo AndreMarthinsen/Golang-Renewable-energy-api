@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"Assignment2/consts"
+	//"Assignment2/internal/stubbing"
 	"Assignment2/util"
 	"encoding/csv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 	//"strings"
 )
 
@@ -25,6 +27,11 @@ const Current = "current"
 const currentYear = "2021"
 const History = "history"
 const dataSetPath = "internal/assets/renewable-share-energy.csv"
+const neighboursPrefix = "neighbours="
+const neighboursTrue = "TRUE"
+const restCountries = "http://129.241.150.113:8080/v3.1/"
+const countriesCode = "alpha/"
+const bordField = "?fields=borders"
 
 // HandlerRenew Handler for the renewables endpoint: this checks if the request is GET, and calls the correct funtion
 // for current renewable percentage or historical renewable percentage
@@ -61,6 +68,28 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, s string) {
 	if len(stats) == 0 {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 	}
+	if r.URL.RawQuery != "" {
+		getNeighbours := strings.ToUpper(strings.TrimLeft(r.URL.RawQuery, neighboursPrefix))
+		if getNeighbours == neighboursTrue {
+			var borders map[string][]string
+			if consts.Development {
+				context := 
+				util.HandlerContext{Name: "current", Writer: &w, Client: &http.Client{Timeout: 10 * time.Second}}
+				URL := restCountries+countriesCode+s+bordField
+				util.HandleOutgoing(&context, 
+					http.MethodGet, 
+					URL, 
+					nil, 
+					&borders)
+				//log.Println("You are here", borders["borders"])
+				for _, val := range borders["borders"] {
+					stats = append(stats, readStatsFromFile(dataSetPath, currentYear, val)...)
+				}
+			} else {
+
+			}
+		} 
+	}
 	http.Header.Add(w.Header(), "content-type", "application/json")
 	util.EncodeAndWriteResponse(&w, stats)
 }
@@ -68,7 +97,7 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, s string) {
 //handlerHistorical Handles requests for the history of renewable energy in one country,
 //on a yearly basis. Has functionality for setting starting and ending year of renewables history
 func handlerHistorical(w http.ResponseWriter, r *http.Request, s string) {
-
+	//var stats []renewableStats
 }
 
 //readStatsFromFile fetches information from the renewable data set, 
