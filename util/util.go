@@ -47,9 +47,11 @@ func GetDomainStatus(URL string) (string, error) {
 	} else {
 		status = response.Status
 	}
-	err = response.Body.Close()
-	if err != nil {
-		log.Println(URL, ": Failed to close body:", err)
+	if response != nil { // response == nil in case of time out
+		err = response.Body.Close()
+		if err != nil {
+			log.Println(URL, ": Failed to close body:", err)
+		}
 	}
 	return status, err
 }
@@ -93,4 +95,3 @@ func HandleOutgoing(handler *HandlerContext, method string, URL string, reader i
 	}
 	return "", nil
 }
-

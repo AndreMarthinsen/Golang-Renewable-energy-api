@@ -18,3 +18,6 @@ const StatusPath = "/energy/" + Version + "/status/"
 
 const Version = "v1"
 const DefaultPort = "10000"
+const Development = true
+const StubPort = "8888"
+const StubDomain = "http://localhost:" + StubPort
