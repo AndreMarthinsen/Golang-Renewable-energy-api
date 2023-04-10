@@ -14,13 +14,13 @@ import (
 type RequestStatus int16
 
 type CacheResponse struct {
-	Neighbours CountryBorder
+	Neighbours map[string][]string
 	Status     RequestStatus
 }
 
 type CacheRequest struct {
 	ChannelPtr     *chan CacheResponse
-	CountryRequest string
+	CountryRequest []string
 }
 
 type CountryBorder struct {
@@ -38,6 +38,17 @@ type CacheEntry struct {
 	LastUpdated time.Time `firestore:"timestamp"`
 }
 
+func ConvertHitsToResponse(hits []CacheEntry) CacheResponse {
+	response := CacheResponse{Status: http.StatusOK} // TODO: What sort of information are we interested in returning?
+	for _, hit := range hits {
+		response.Neighbours[hit.Cca3] = hit.Borders
+	}
+	if len(response.Neighbours) == 0 {
+		response.Status = http.StatusNotFound
+	}
+	return response
+}
+
 func (entry *CacheEntry) toCountryBorder() CountryBorder {
 	return CountryBorder{Borders: entry.Borders, Cca3: entry.Cca3}
 }
@@ -53,6 +64,13 @@ type Config struct {
 	PrimaryCache      string
 }
 
+type CacheMiss struct {
+	Request  CacheRequest
+	Response CacheResponse
+}
+
+// RunCacheWorker runs a worker intended for the purpose of supplying handlers for country
+// neighbour data from in memory cache that is kept synced with external DB.
 func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struct{},
 	cleanupDone chan<- struct{}) {
 
@@ -60,7 +78,7 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 		log.Println("Cache worker: running")
 	}
 	localCache := make(map[string]CacheEntry, 0)
-	cacheMisses := make([]CacheRequest, 0)
+	cacheMisses := make([]CacheMiss, 0)
 	client := http.Client{}
 
 	localCache, err := loadCacheFromDB(cfg, cfg.PrimaryCache)
@@ -86,60 +104,60 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 	for {
 		select { // Runs loop until it receives signal on stop channel
 		case <-stop:
-			if err := updateCacheInDB(cfg, "", localCache); err != nil {
-				//TODO: Error handling goes here
+			if err = createCacheInDB(cfg, "ShutDownTest", localCache); err != nil {
+				log.Fatal("cache worker: failed to create DB on shutdown")
 			}
 			cleanupDone <- struct{}{}
 			return
-		default:
-		} // Updates external DB with a given interval
-		if time.Since(previousUpdate).Seconds() >= cfg.CachePushRate {
-			//TODO: Update external DB
-			previousUpdate = time.Now()
-		}
-		for {
-			select {
-			case val, ok := <-requests:
-				if !ok {
-					log.Println("Cache worker lost contact with request channel.\n" +
-						"Running cleanup routine and shutting down cache worker.")
-					cleanupDone <- struct{}{}
-					return
-				}
-				cacheResult, ok := localCache[val.CountryRequest]
+		case val, ok := <-requests: // TODO: Limiting handled requests before considering default case
+			if !ok {
+				log.Println("Cache worker lost contact with request channel.\n" +
+					"Running cleanup routine and shutting down cache worker.")
+				cleanupDone <- struct{}{}
+				return
+			}
+			// CHECKING AGAINST IN MEMORY CACHE //////////////////////////////
+			response := CacheResponse{Status: http.StatusOK}
+			misses := make([]string, 0)
+			for _, code := range val.CountryRequest {
+				cacheResult, ok := localCache[code]
 				if ok {
-					*val.ChannelPtr <- CacheResponse{
-						cacheResult.toCountryBorder(),
-						http.StatusOK,
-					}
+					response.Neighbours[code] = cacheResult.Borders
 				} else {
-					cacheMisses = append(cacheMisses, val)
+					misses = append(misses, code)
 				}
-			default:
-				if len(cacheMisses) != 0 {
-					updateLocalCache(&client, localCache, cacheMisses)
-					for _, miss := range cacheMisses {
-						if cacheResult, ok := localCache[miss.CountryRequest]; ok {
-							*miss.ChannelPtr <- CacheResponse{
-								cacheResult.toCountryBorder(),
-								http.StatusOK,
-							}
-						} else {
-							*miss.ChannelPtr <- CacheResponse{
-								CountryBorder{},
-								http.StatusBadRequest,
-							} // TODO: Probably a better way to handle this.
+			}
+			if len(misses) == 0 {
+				*val.ChannelPtr <- response
+			} else { // Some misses, will be handled when default case occurs
+				val.CountryRequest = misses
+				cacheMisses = append(cacheMisses, CacheMiss{Request: val, Response: response})
+			}
+		default: // SYNC OF DB, CHECKING THIRD PARTY API AGAINST MISSES /////////
+			if len(cacheMisses) != 0 {
+				updateLocalCache(&client, localCache, cacheMisses)
+				for _, miss := range cacheMisses {
+					for _, code := range miss.Request.CountryRequest {
+						if cacheResult, ok := localCache[code]; ok {
+							miss.Response.Neighbours[code] = cacheResult.Borders
 						}
 					}
-					cacheMisses = make([]CacheRequest, 0) // resets list over misses
-					break
+					if len(miss.Response.Neighbours) == 0 {
+						miss.Response.Status = http.StatusNotFound
+					} // Cache updated and response sent to handler
+					*miss.Request.ChannelPtr <- miss.Response
 				}
+				cacheMisses = make([]CacheMiss, 0) // resets list over misses
+			}
+			if time.Since(previousUpdate).Seconds() >= cfg.CachePushRate {
+				//TODO: Update external DB
+				previousUpdate = time.Now()
 			}
 		}
 	}
 }
 
-func updateLocalCache(client *http.Client, cache map[string]CacheEntry, misses []CacheRequest) {
+func updateLocalCache(client *http.Client, cache map[string]CacheEntry, misses []CacheMiss) {
 	joinedCountryCodes := getCodesStringFromMisses(misses)
 	request, err := http.NewRequest(
 		http.MethodGet,
@@ -166,10 +184,14 @@ func updateLocalCache(client *http.Client, cache map[string]CacheEntry, misses [
 	}
 }
 
-func getCodesStringFromMisses(misses []CacheRequest) string {
+func getCodesStringFromMisses(misses []CacheMiss) string {
+	codes := make([]string, 0)
+	for _, miss := range misses {
+		codes = append(codes, miss.Request.CountryRequest...)
+	}
 	missedCountries := make(map[string]int8) // int serves no purpose,
-	for _, miss := range misses {            // map is just used to create a set of unique values
-		missedCountries[miss.CountryRequest] = 0
+	for _, code := range codes {             // map is just used to create a set of unique values
+		missedCountries[code] = 0
 	}
 	countryCodes := make([]string, 0)
 	for key, _ := range missedCountries {
