@@ -62,7 +62,6 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 	cacheMisses := make([]CacheRequest, 0)
 	client := http.Client{}
 
-	updateDB := func() {}
 	localCache, err := loadCacheFromDB(cfg, cfg.PrimaryCache)
 	if err != nil {
 		log.Println("Cache worker: failed to load primary cache")
@@ -89,7 +88,6 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 		default:
 		} // Updates external DB with a given interval
 		if time.Since(previousUpdate).Seconds() >= cfg.CachePushRate {
-			updateDB()
 			previousUpdate = time.Now()
 		}
 		for {
@@ -98,7 +96,6 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 				if !ok {
 					log.Println("Cache worker lost contact with request channel.\n" +
 						"Running cleanup routine and shutting down cache worker.")
-					updateDB()
 					cleanupDone <- struct{}{}
 					return
 				}
@@ -175,29 +172,21 @@ func getCodesStringFromMisses(misses []CacheRequest) string {
 }
 
 func loadCacheFromDB(cfg *Config, CacheID string) (map[string]CacheEntry, error) {
-	res := cfg.FirestoreClient.Collection(cfg.CachingCollection).Doc(CacheID)
+	res := cfg.FirestoreClient.Collection(cfg.CachingCollection).Doc("TestStorage")
 	doc, err := res.Get(*cfg.Ctx)
 	if err != nil {
 		return nil, err
 	}
-	cache := Cache{}
-	if err = doc.DataTo(&cache); err != nil {
-		return nil, err
-	}
 	cacheMap := make(map[string]CacheEntry, 0)
-	for _, entry := range cache.CacheEntries {
-		cacheMap[entry.Cca3] = entry
+	if err = doc.DataTo(&cacheMap); err != nil {
+		return nil, err
 	}
 	return cacheMap, nil
 }
 
 func createCacheInDB(cfg *Config, cacheID string, cache map[string]CacheEntry) error {
-	c := Cache{}
-	for _, val := range cache {
-		c.CacheEntries = append(c.CacheEntries, val)
-	}
-	ref := cfg.FirestoreClient.Collection(cfg.CachingCollection).Doc(cacheID)
-	_, err := ref.Set(*cfg.Ctx, &c)
+	ref := cfg.FirestoreClient.Collection(cfg.CachingCollection).Doc("TestData")
+	_, err := ref.Set(*cfg.Ctx, &cache)
 	if err != nil {
 		return err
 	}
