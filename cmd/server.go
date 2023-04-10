@@ -49,7 +49,7 @@ func main() {
 		Ctx:               &ctx,
 		FirestoreClient:   client,
 		CachingCollection: "Caches",
-		PrimaryCache:      "TestCache",
+		PrimaryCache:      "TestData",
 	}
 
 	requestChannel := make(chan caching.CacheRequest)

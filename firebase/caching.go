@@ -171,8 +171,8 @@ func getCodesStringFromMisses(misses []CacheRequest) string {
 	return strings.Join(countryCodes, ",")
 }
 
-func loadCacheFromDB(cfg *Config, CacheID string) (map[string]CacheEntry, error) {
-	res := cfg.FirestoreClient.Collection(cfg.CachingCollection).Doc("TestStorage")
+func loadCacheFromDB(cfg *Config, cacheID string) (map[string]CacheEntry, error) {
+	res := cfg.FirestoreClient.Collection(cfg.CachingCollection).Doc(cacheID)
 	doc, err := res.Get(*cfg.Ctx)
 	if err != nil {
 		return nil, err
@@ -185,7 +185,7 @@ func loadCacheFromDB(cfg *Config, CacheID string) (map[string]CacheEntry, error)
 }
 
 func createCacheInDB(cfg *Config, cacheID string, cache map[string]CacheEntry) error {
-	ref := cfg.FirestoreClient.Collection(cfg.CachingCollection).Doc("TestData")
+	ref := cfg.FirestoreClient.Collection(cfg.CachingCollection).Doc(cacheID)
 	_, err := ref.Set(*cfg.Ctx, &cache)
 	if err != nil {
 		return err
