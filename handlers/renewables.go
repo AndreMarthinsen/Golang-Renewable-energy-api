@@ -8,15 +8,16 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
 
 type renewableStats struct {
-	Name	   string //`json:"name"`
-	Isocode    string //`json:"isocode"`
-	Year	   string //`json:"year"`
-	Percentage string //`json:"percentage"`
+	Name	   string `json:"name"`
+	Isocode    string `json:"isocode"`
+	Year	   string `json:"year,omitempty"`
+	Percentage string `json:"percentage"`
 }
 
 type country struct {
@@ -25,6 +26,8 @@ type country struct {
 
 const Current = "current"
 const currentYear = "2021"
+const firstYear = "1965"
+const yearSpan = 56
 const History = "history"
 const dataSetPath = "internal/assets/renewable-share-energy.csv"
 const neighboursPrefix = "neighbours="
@@ -120,19 +123,28 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, s string) {
 //on a yearly basis. Has functionality for setting starting and ending year of renewables history
 func handlerHistorical(w http.ResponseWriter, r *http.Request, s string) {
 	var stats []renewableStats
+	stats = append(stats, readStatsFromFile(dataSetPath, currentYear, strings.ToUpper(s))...)
+	for i, val := range stats {
+		var tmp float64
+		tmp = readPercentageFromFile(dataSetPath, val.Isocode)
+		tmp = tmp/yearSpan
+		stats[i].Percentage = strconv.FormatFloat(tmp, 'f', -1, 64)
+		stats[i].Year = ""
+	}
 	http.Header.Add(w.Header(), "content-type", "application/json")
-	util.EncodeAndWriteResponse(&w, stats)-
+	util.EncodeAndWriteResponse(&w, stats)
 }
 
 //readStatsFromFile fetches information from a cvs.file specified by path, 
 // puts in a slice of renewableStats and returns that slice
 func readStatsFromFile(p string, year string, code string) []renewableStats {
 	var tmp []renewableStats
-	f, err := os.Open(p)
-	if err != nil {
-		log.Fatalf("File error: %v\n", err)
-	}
-	nr := csv.NewReader(f)
+	// f, err := os.Open(p)
+	// if err != nil {
+	// 	log.Fatalf("File error: %v\n", err)
+	// }
+	// nr := csv.NewReader(f)
+	nr := readCSV(p)
 	for {
         record, err := nr.Read()
         if err == io.EOF {
@@ -142,17 +154,53 @@ func readStatsFromFile(p string, year string, code string) []renewableStats {
             log.Fatal(err)
         }
 		if record[2] == year {
-			//TODO: remove fmt.Print(record)
 			if code != "" {
 				if record[1] == code {
 					tmp = append(tmp, renewableStats{record[0], record[1], record[2], record[3]})
 				}
 			} else {
-				if record[1] != "" { 
+				if record[1] != "" {
 					tmp = append(tmp, renewableStats{record[0], record[1], record[2], record[3]})
 				}
 			}			
 		}
 	}
 	return tmp
+}
+
+func readPercentageFromFile(p string, /*year string,*/ code string) float64 {
+var tmp float64
+nr := readCSV(p)
+for {
+	record, err := nr.Read()
+	if err == io.EOF {
+		break
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
+	//if record[2] == year {
+		if code != "" {
+			if record[1] == code {
+				per, _ := strconv.ParseFloat(record[3], 32) 
+				tmp += per
+			}
+		} else {
+			if record[1] != "" {
+				per, _ := strconv.ParseFloat(record[3], 32)
+				tmp += per
+			}
+		}			
+	//}
+}
+return tmp
+}
+
+func readCSV(p string) *csv.Reader {
+	f, err := os.Open(p)
+	if err != nil {
+		log.Fatalf("File error: %v\n", err)
+	}
+	nr := csv.NewReader(f)
+	return nr
 }
