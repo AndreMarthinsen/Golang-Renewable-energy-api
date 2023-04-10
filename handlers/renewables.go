@@ -2,18 +2,14 @@ package handlers
 
 import (
 	"Assignment2/consts"
-	//"Assignment2/internal/stubbing"
 	"Assignment2/util"
 	"encoding/csv"
-	"strings"
-
-	//"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
-	//"strings"
 )
 
 type renewableStats struct {
@@ -21,6 +17,10 @@ type renewableStats struct {
 	Isocode    string //`json:"isocode"`
 	Year	   string //`json:"year"`
 	Percentage string //`json:"percentage"`
+}
+
+type country struct {
+	Borders    []string `json:"borders"`
 }
 
 const Current = "current"
@@ -31,6 +31,7 @@ const neighboursPrefix = "neighbours="
 const neighboursTrue = "TRUE"
 const restCountries = "http://129.241.150.113:8080/v3.1/"
 const countriesCode = "alpha/"
+const stubCodeAffix = "?codes="
 const bordField = "?fields=borders"
 
 // HandlerRenew Handler for the renewables endpoint: this checks if the request is GET, and calls the correct funtion
@@ -43,8 +44,7 @@ func HandlerRenew(w http.ResponseWriter, r *http.Request) {
 	if len(path) < 2 {
 		path = append(path, "")
 	}
-	//log.Println(path, len(path))
-	
+		
 	//TODO Implement handler for historical renewable percentages
 	switch path[0] {
 	case Current: handlerCurrent(w, r, path[1])
@@ -64,31 +64,53 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, s string) {
 		stats = 
 		append(stats, readStatsFromFile(dataSetPath, currentYear, strings.ToUpper(s))...)
 	}
-	//TODO: remove log.Println(stats)
 	if len(stats) == 0 {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 	}
 	if r.URL.RawQuery != "" {
 		getNeighbours := strings.ToUpper(strings.TrimLeft(r.URL.RawQuery, neighboursPrefix))
 		if getNeighbours == neighboursTrue {
-			var borders map[string][]string
-			if consts.Development {
-				context := 
-				util.HandlerContext{Name: "current", Writer: &w, Client: &http.Client{Timeout: 10 * time.Second}}
-				URL := restCountries+countriesCode+s+bordField
-				util.HandleOutgoing(&context, 
+			context := 
+			util.HandlerContext{Name: "current", Writer: &w, Client: &http.Client{Timeout: 10 * time.Second}}
+			var URL string
+			// TODO: refactor this into generic function that can handle both
+			// single country and country slice
+			if !consts.Development {
+				var c []country
+				URL = consts.StubDomain + consts.CountryCodePath + stubCodeAffix + strings.ToUpper(s)
+				util.HandleOutgoing(
+					&context, 
 					http.MethodGet, 
 					URL, 
 					nil, 
-					&borders)
-				//log.Println("You are here", borders["borders"])
-				for _, val := range borders["borders"] {
-					stats = append(stats, readStatsFromFile(dataSetPath, currentYear, val)...)
-				}
+					&c)
+					for _, val := range c[0].Borders {
+						stats = append(stats, readStatsFromFile(dataSetPath, currentYear, val)...)
+					}
 			} else {
-
+				var c country
+				URL = restCountries+countriesCode+s+bordField
+				util.HandleOutgoing(
+					&context, 
+					http.MethodGet, 
+					URL, 
+					nil, 
+					&c)
+					for _, val := range c.Borders {
+						stats = append(stats, readStatsFromFile(dataSetPath, currentYear, val)...)
+					}
 			}
-		} 
+			// util.HandleOutgoing(
+			// 	&context, 
+			// 	http.MethodGet, 
+			// 	URL, 
+			// 	nil, 
+			// 	&c)
+			// log.Println(c)
+			// for _, val := range borders["borders"] {
+			// 	stats = append(stats, readStatsFromFile(dataSetPath, currentYear, val)...)
+			// }
+		}
 	}
 	http.Header.Add(w.Header(), "content-type", "application/json")
 	util.EncodeAndWriteResponse(&w, stats)
@@ -97,10 +119,12 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, s string) {
 //handlerHistorical Handles requests for the history of renewable energy in one country,
 //on a yearly basis. Has functionality for setting starting and ending year of renewables history
 func handlerHistorical(w http.ResponseWriter, r *http.Request, s string) {
-	//var stats []renewableStats
+	var stats []renewableStats
+	http.Header.Add(w.Header(), "content-type", "application/json")
+	util.EncodeAndWriteResponse(&w, stats)-
 }
 
-//readStatsFromFile fetches information from the renewable data set, 
+//readStatsFromFile fetches information from a cvs.file specified by path, 
 // puts in a slice of renewableStats and returns that slice
 func readStatsFromFile(p string, year string, code string) []renewableStats {
 	var tmp []renewableStats
