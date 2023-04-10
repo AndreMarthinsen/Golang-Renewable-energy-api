@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	// "os"
 	"net"
 	"net/http"
 	"strings"
@@ -95,3 +96,15 @@ func HandleOutgoing(handler *HandlerContext, method string, URL string, reader i
 	}
 	return "", nil
 }
+
+// parseFile parses a file specified by filename
+//
+// On failure: Calls log.Fatal detailing the error.
+// On success: Returns the read file as a byte slice.
+// func ParseFile(filePath string) []byte {
+// 	file, e := os.ReadFile(filePath)
+// 	if e != nil {
+// 		log.Fatalf("File error: %v\n", e)
+// 	}
+// 	return file
+// }
