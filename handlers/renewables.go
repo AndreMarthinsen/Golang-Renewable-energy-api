@@ -67,53 +67,36 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, s string) {
 		stats = 
 		append(stats, readStatsFromFile(dataSetPath, currentYear, strings.ToUpper(s))...)
 	}
-	if len(stats) == 0 {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-	}
+	// if len(stats) == 0 {
+	// 	http.Error(w, "Bad request", http.StatusBadRequest)
+	// }
 	if r.URL.RawQuery != "" {
 		getNeighbours := strings.ToUpper(strings.TrimLeft(r.URL.RawQuery, neighboursPrefix))
 		if getNeighbours == neighboursTrue {
+			var c []country
 			context := 
 			util.HandlerContext{Name: "current", Writer: &w, Client: &http.Client{Timeout: 10 * time.Second}}
 			var URL string
 			// TODO: refactor this into generic function that can handle both
 			// single country and country slice
-			if !consts.Development {
-				var c []country
+			if consts.Development {
 				URL = consts.StubDomain + consts.CountryCodePath + stubCodeAffix + strings.ToUpper(s)
-				util.HandleOutgoing(
-					&context, 
-					http.MethodGet, 
-					URL, 
-					nil, 
-					&c)
-					for _, val := range c[0].Borders {
-						stats = append(stats, readStatsFromFile(dataSetPath, currentYear, val)...)
-					}
 			} else {
-				var c country
-				URL = restCountries+countriesCode+s+bordField
-				util.HandleOutgoing(
-					&context, 
-					http.MethodGet, 
-					URL, 
-					nil, 
-					&c)
-					for _, val := range c.Borders {
-						stats = append(stats, readStatsFromFile(dataSetPath, currentYear, val)...)
-					}
+				URL = restCountries+countriesCode+s//+bordField
 			}
-			// util.HandleOutgoing(
-			// 	&context, 
-			// 	http.MethodGet, 
-			// 	URL, 
-			// 	nil, 
-			// 	&c)
-			// log.Println(c)
-			// for _, val := range borders["borders"] {
-			// 	stats = append(stats, readStatsFromFile(dataSetPath, currentYear, val)...)
-			// }
+			util.HandleOutgoing(
+				&context, 
+				http.MethodGet, 
+				URL, 
+				nil, 
+				&c)
+			for _, val := range c[0].Borders {
+				stats = append(stats, readStatsFromFile(dataSetPath, currentYear, val)...)
+			}
 		}
+	}
+	if len(stats) == 0 {
+		http.Error(w, "Bad request", http.StatusBadRequest)
 	}
 	http.Header.Add(w.Header(), "content-type", "application/json")
 	util.EncodeAndWriteResponse(&w, stats)
@@ -131,6 +114,9 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, s string) {
 		stats[i].Percentage = strconv.FormatFloat(tmp, 'f', -1, 64)
 		stats[i].Year = ""
 	}
+	if len(stats) == 0 {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+	}
 	http.Header.Add(w.Header(), "content-type", "application/json")
 	util.EncodeAndWriteResponse(&w, stats)
 }
@@ -139,11 +125,6 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, s string) {
 // puts in a slice of renewableStats and returns that slice
 func readStatsFromFile(p string, year string, code string) []renewableStats {
 	var tmp []renewableStats
-	// f, err := os.Open(p)
-	// if err != nil {
-	// 	log.Fatalf("File error: %v\n", err)
-	// }
-	// nr := csv.NewReader(f)
 	nr := readCSV(p)
 	for {
         record, err := nr.Read()
