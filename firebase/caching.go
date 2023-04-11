@@ -103,9 +103,6 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 				cleanupDone <- struct{}{}
 				return
 			}
-			if cfg.DebugMode {
-				log.Println("received request")
-			}
 			// CHECKING AGAINST IN MEMORY CACHE //////////////////////////////
 			response := CacheResponse{Status: http.StatusOK, Neighbours: map[string][]string{}}
 			misses := make([]string, 0)
@@ -172,9 +169,7 @@ func updateLocalCache(cfg *Config, client *http.Client, cache map[string]CacheEn
 
 	returnedData := make([]CacheEntry, 0)
 	decoder := json.NewDecoder(response.Body)
-	if err = decoder.Decode(&returnedData); err != nil {
-		log.Println("failed to decode")
-	} else {
+	if err = decoder.Decode(&returnedData); err == nil {
 		// Update of cache with any valid results
 		for _, data := range returnedData {
 			cache[data.Cca3] = data
