@@ -106,13 +106,21 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, s string) {
 //on a yearly basis. Has functionality for setting starting and ending year of renewables history
 func handlerHistorical(w http.ResponseWriter, r *http.Request, s string) {
 	var stats []renewableStats
-	stats = append(stats, readStatsFromFile(dataSetPath, currentYear, strings.ToUpper(s))...)
-	for i, val := range stats {
-		var tmp float64
-		tmp = readPercentageFromFile(dataSetPath, val.Isocode)
-		tmp = tmp/yearSpan
-		stats[i].Percentage = strconv.FormatFloat(tmp, 'f', -1, 64)
-		stats[i].Year = ""
+	if s == "" {
+		stats = append(stats, readStatsFromFile(dataSetPath, currentYear, strings.ToUpper(s))...)
+		for i, val := range stats {
+			var tmp float64
+			tmp = readPercentageFromFile(dataSetPath, val.Isocode)
+			tmp = tmp/yearSpan
+			stats[i].Percentage = strconv.FormatFloat(tmp, 'f', -1, 64)
+			stats[i].Year = ""
+		}
+	} else {
+		start,_  := strconv.Atoi(firstYear)
+		end,_ := strconv.Atoi(currentYear)
+		for i := start; i <= end; i++ {
+			stats = append(stats, readStatsFromFile(dataSetPath, strconv.Itoa(i), strings.ToUpper(s))...)
+		}
 	}
 	if len(stats) == 0 {
 		http.Error(w, "Bad request", http.StatusBadRequest)
