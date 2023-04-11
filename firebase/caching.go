@@ -27,7 +27,7 @@ type CacheResponse struct {
 // should be posted along with a slice of country codes to be
 // looked up in cache or external API
 type CacheRequest struct {
-	ChannelPtr     *chan CacheResponse
+	ChannelPtr     chan CacheResponse
 	CountryRequest []string
 }
 
@@ -103,8 +103,11 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 				cleanupDone <- struct{}{}
 				return
 			}
+			if cfg.DebugMode {
+				log.Println("received request")
+			}
 			// CHECKING AGAINST IN MEMORY CACHE //////////////////////////////
-			response := CacheResponse{Status: http.StatusOK}
+			response := CacheResponse{Status: http.StatusOK, Neighbours: map[string][]string{}}
 			misses := make([]string, 0)
 			for _, code := range val.CountryRequest {
 				cacheResult, ok := localCache[code]
@@ -115,7 +118,10 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 				}
 			}
 			if len(misses) == 0 {
-				*val.ChannelPtr <- response
+				if cfg.DebugMode {
+					log.Println("returning response")
+				}
+				val.ChannelPtr <- response
 			} else { // Some misses, will be handled when default case occurs
 				val.CountryRequest = misses
 				cacheMisses = append(cacheMisses, CacheMiss{Request: val, Response: response})
@@ -132,7 +138,7 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 					if len(miss.Response.Neighbours) == 0 {
 						miss.Response.Status = http.StatusNotFound
 					} // Cache updated and response sent to handler
-					*miss.Request.ChannelPtr <- miss.Response
+					miss.Request.ChannelPtr <- miss.Response
 				}
 				cacheMisses = make([]CacheMiss, 0) // resets list over misses
 			}
@@ -151,17 +157,17 @@ func updateLocalCache(cfg *Config, client *http.Client, cache map[string]CacheEn
 	joinedCountryCodes := getCodesStringFromMisses(misses)
 	var url string
 	if cfg.DevelopmentMode { // Uses internal stubbing service when in development mode
-		url = consts.StubDomain + consts.StubPort + consts.CountryCodePath + joinedCountryCodes
+		url = consts.StubDomain + consts.CountryCodePath + "?codes=" + joinedCountryCodes
 	} else {
 		url = consts.StubDomain + consts.CountryCodePath + joinedCountryCodes
 	}
 	request, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		log.Println("Cache Worker failed to create request.")
+		log.Println("Cache Worker failed to create request to url " + url)
 	}
 	response, err2 := client.Do(request)
 	if err2 != nil {
-		log.Println("cache worked failed to do request")
+		log.Println("cache worker failed to do request with url" + url)
 	}
 
 	returnedData := make([]CacheEntry, 0)
