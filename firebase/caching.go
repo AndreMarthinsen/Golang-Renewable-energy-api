@@ -11,48 +11,35 @@ import (
 	"time"
 )
 
+// RequestStatus represents a http status code
+// TODO: Any point to this?
 type RequestStatus int16
 
+// CacheResponse maps requested codes to resulting neighbours
+// along with a http status code associated with any outgoing
+// request to fetch the information.
 type CacheResponse struct {
 	Neighbours map[string][]string
 	Status     RequestStatus
 }
 
+// CacheRequest wraps a pointer to a channel where the response
+// should be posted along with a slice of country codes to be
+// looked up in cache or external API
 type CacheRequest struct {
 	ChannelPtr     *chan CacheResponse
 	CountryRequest []string
 }
 
-type CountryBorder struct {
-	Cca3    string   `json:"cca3"`
-	Borders []string `json:"borders"`
-}
-
-type Cache struct {
-	CacheEntries []CacheEntry `firestore:"root"`
-}
-
+// CacheEntry contains information about the borders of a country,
+// its cca3 code and the time it was last updated.
 type CacheEntry struct {
 	Borders     []string  `firestore:"borders"`
 	Cca3        string    `firestore:"cca3"`
 	LastUpdated time.Time `firestore:"timestamp"`
 }
 
-func ConvertHitsToResponse(hits []CacheEntry) CacheResponse {
-	response := CacheResponse{Status: http.StatusOK} // TODO: What sort of information are we interested in returning?
-	for _, hit := range hits {
-		response.Neighbours[hit.Cca3] = hit.Borders
-	}
-	if len(response.Neighbours) == 0 {
-		response.Status = http.StatusNotFound
-	}
-	return response
-}
-
-func (entry *CacheEntry) toCountryBorder() CountryBorder {
-	return CountryBorder{Borders: entry.Borders, Cca3: entry.Cca3}
-}
-
+// Config contains project config. TODO: Moves this to a more fitting package.
 type Config struct {
 	CachePushRate     float64
 	CacheTimeLimit    time.Duration
@@ -135,7 +122,7 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 			}
 		default: // SYNC OF DB, CHECKING THIRD PARTY API AGAINST MISSES /////////
 			if len(cacheMisses) != 0 {
-				updateLocalCache(&client, localCache, cacheMisses)
+				updateLocalCache(cfg, &client, localCache, cacheMisses)
 				for _, miss := range cacheMisses {
 					for _, code := range miss.Request.CountryRequest {
 						if cacheResult, ok := localCache[code]; ok {
@@ -157,13 +144,18 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 	}
 }
 
-func updateLocalCache(client *http.Client, cache map[string]CacheEntry, misses []CacheMiss) {
+// updateLocalCache updates the local cache by attempting to retrieve data matching
+// any registered misses. Requests are either made to internal stubbing if development is
+// set in config, 3d party API if false.
+func updateLocalCache(cfg *Config, client *http.Client, cache map[string]CacheEntry, misses []CacheMiss) {
 	joinedCountryCodes := getCodesStringFromMisses(misses)
-	request, err := http.NewRequest(
-		http.MethodGet,
-		consts.StubDomain+consts.CountryCodePath+joinedCountryCodes,
-		nil,
-	)
+	var url string
+	if cfg.DevelopmentMode { // Uses internal stubbing service when in development mode
+		url = consts.StubDomain + consts.StubPort + consts.CountryCodePath + joinedCountryCodes
+	} else {
+		url = consts.StubDomain + consts.CountryCodePath + joinedCountryCodes
+	}
+	request, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		log.Println("Cache Worker failed to create request.")
 	}
@@ -184,22 +176,27 @@ func updateLocalCache(client *http.Client, cache map[string]CacheEntry, misses [
 	}
 }
 
+// getCodesStringFromMisses collects all cca3 codes from the cache misses and
+// concatenates them into a single string of codes separated by ','
 func getCodesStringFromMisses(misses []CacheMiss) string {
-	codes := make([]string, 0)
+	missedCodes := make(map[string]bool)
+	// map is used to create a set of unique values. Bool is there to have a val per key.
 	for _, miss := range misses {
-		codes = append(codes, miss.Request.CountryRequest...)
+		for _, code := range miss.Request.CountryRequest {
+			missedCodes[code] = true
+		}
 	}
-	missedCountries := make(map[string]int8) // int serves no purpose,
-	for _, code := range codes {             // map is just used to create a set of unique values
-		missedCountries[code] = 0
-	}
-	countryCodes := make([]string, 0)
-	for key, _ := range missedCountries {
-		countryCodes = append(countryCodes, key)
+	var countryCodes = make([]string, 0, len(missedCodes))
+	for code, _ := range missedCodes {
+		countryCodes = append(countryCodes, code)
 	}
 	return strings.Join(countryCodes, ",")
 }
 
+// loadCacheFromDB loads a cache doc with the given ID from the collection
+// determined by Config.CachingCollection.
+// On success: (in mem cache as string -> CacheEntry map, nil)
+// On fail:    (nil, error)
 func loadCacheFromDB(cfg *Config, cacheID string) (map[string]CacheEntry, error) {
 	res := cfg.FirestoreClient.Collection(cfg.CachingCollection).Doc(cacheID)
 	doc, err := res.Get(*cfg.Ctx)
@@ -213,6 +210,10 @@ func loadCacheFromDB(cfg *Config, cacheID string) (map[string]CacheEntry, error)
 	return cacheMap, nil
 }
 
+// createCacheInDB creates a new cache in the external DB in a collection set by
+// Config.CachingCollection with a given cacheID
+// On success: nil
+// On fail: error
 func createCacheInDB(cfg *Config, cacheID string, cache map[string]CacheEntry) error {
 	ref := cfg.FirestoreClient.Collection(cfg.CachingCollection).Doc(cacheID)
 	_, err := ref.Set(*cfg.Ctx, &cache)
@@ -222,6 +223,8 @@ func createCacheInDB(cfg *Config, cacheID string, cache map[string]CacheEntry) e
 	return nil
 }
 
+// updateCacheInDB updates the remote cache with any new entries.
+// TODO: Not currently functional
 func updateCacheInDB(cfg *Config, cacheID string, newEntries map[string]CacheEntry) error {
 	ref := cfg.FirestoreClient.Collection(cfg.CachingCollection).Doc(cacheID)
 	if _, err := ref.Set(*cfg.Ctx, newEntries, firestore.MergeAll); err != nil {
@@ -230,6 +233,8 @@ func updateCacheInDB(cfg *Config, cacheID string, newEntries map[string]CacheEnt
 	return nil
 }
 
+// purgeStaleEntries removes entries older than the time-limit set in Config.CacheTimeLimit
+// from the local cache as well as the remote DB.
 func purgeStaleEntries(cfg *Config, cacheID string, oldCache map[string]CacheEntry) (map[string]CacheEntry, error) {
 
 	newCache := make(map[string]CacheEntry, 0)
