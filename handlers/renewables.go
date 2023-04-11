@@ -24,18 +24,18 @@ type country struct {
 	Borders    []string `json:"borders"`
 }
 
-const Current = "current"
+const current = "current"
 const currentYear = "2021"
 const firstYear = "1965"
 const yearSpan = 56
-const History = "history"
+const history = "history"
 const dataSetPath = "internal/assets/renewable-share-energy.csv"
 const neighboursPrefix = "neighbours="
 const neighboursTrue = "TRUE"
 const restCountries = "http://129.241.150.113:8080/v3.1/"
 const countriesCode = "alpha/"
 const stubCodeAffix = "?codes="
-const bordField = "?fields=borders"
+//const bordField = "?fields=borders" TODO: Remove if stubbing does not emulate field-specification
 
 // HandlerRenew Handler for the renewables endpoint: this checks if the request is GET, and calls the correct funtion
 // for current renewable percentage or historical renewable percentage
@@ -50,8 +50,8 @@ func HandlerRenew(w http.ResponseWriter, r *http.Request) {
 		
 	//TODO Implement handler for historical renewable percentages
 	switch path[0] {
-	case Current: handlerCurrent(w, r, path[1])
-	case History: handlerHistorical(w, r, path[1])
+	case current: handlerCurrent(w, r, path[1])
+	case history: handlerHistorical(w, r, path[1])
 	default: http.Error(w, "Bad request", http.StatusBadRequest)
 	}
 }
@@ -116,8 +116,28 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, s string) {
 			stats[i].Year = ""
 		}
 	} else {
-		start,_  := strconv.Atoi(firstYear)
-		end,_ := strconv.Atoi(currentYear)
+		// The following checks if there is a query, if its correctly formatted, and if
+		// it is, it sets the bounds of the beginning and end of the country's energy history
+		start,err  := strconv.Atoi(firstYear)
+		if err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+		}
+		end,err := strconv.Atoi(currentYear)
+		if err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+		}
+		//TODO: put query-handling in its own function
+		if r.URL.RawQuery != "" {
+			query := r.URL.Query()
+			start, err = strconv.Atoi(query.Get("begin"))
+			if err != nil {
+				http.Error(w, "Bad request", http.StatusBadRequest)
+			}
+			end, err = strconv.Atoi(query.Get("end"))
+			if err != nil {
+				http.Error(w, "Bad request", http.StatusBadRequest)
+			}
+		}
 		for i := start; i <= end; i++ {
 			stats = append(stats, readStatsFromFile(dataSetPath, strconv.Itoa(i), strings.ToUpper(s))...)
 		}
