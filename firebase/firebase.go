@@ -7,6 +7,7 @@ import (
 	"context"
 	firebase "firebase.google.com/go"
 	"fmt"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"log"
 )
@@ -35,7 +36,6 @@ func (f *FirestoreContext) Initialize(configFilePath string) error {
 	// Instantiate firebase client:
 	f.client, err = app.Firestore(f.ctx)
 	if err != nil {
-		//log.Fatalln(err)
 		log.Println(err)
 		return err
 	}
@@ -84,4 +84,23 @@ func (f *FirestoreContext) ReadDocument(collection, id string) (map[string]inter
 	fmt.Println("document data: ", document)
 
 	return document, nil
+}
+
+// CountDocuments counts all docs in specified collection
+func (f *FirestoreContext) CountDocuments(collection string) (int, error) {
+	count := 0
+	iter := f.client.Collection(collection).Documents(f.ctx)
+
+	for {
+		_, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return 0, err
+		}
+		count++
+	}
+
+	return count, nil
 }

@@ -21,6 +21,7 @@ func TestInitializeFirestore(t *testing.T) {
 	}
 }
 
+// TestAddDocument checks if document can be added to collection
 func TestAddDocument(t *testing.T) {
 	fs := firebase.FirestoreContext{}
 	err := fs.Initialize(serviceAccountPath)
@@ -35,7 +36,7 @@ func TestAddDocument(t *testing.T) {
 		"third":  "third_value",
 	}
 
-	id, err := fs.AddDocument(testCollection, testData)
+	id, err := fs.AddDocument("testCollection", testData)
 
 	if err != nil {
 		t.Error("could not create document")
@@ -61,6 +62,7 @@ func TestDeleteDocument(t *testing.T) {
 	}
 
 	newDoc, _ := fs.AddDocument(testCollection, testData)
+	// TODO remove pause?
 	// small pause to see the doc appear in firebase
 	time.Sleep(3 * time.Second)
 
@@ -107,13 +109,56 @@ func TestReadDocument(t *testing.T) {
 
 	content, err := fs.ReadDocument(testCollection, newDoc)
 	if err != nil {
-		t.Error("Unable to read document")
+		t.Error("unable to read document")
 	}
-	// TODO safer testing?
+	// TODO safer equality testing?
 	out := fmt.Sprint(testData)
 	in := fmt.Sprint(content)
 	if out != in {
 		t.Error("could not get back equal data")
+	}
+}
+
+// TestCountDocuments
+func TestCountDocuments(t *testing.T) {
+	fs := firebase.FirestoreContext{}
+	err := fs.Initialize(serviceAccountPath)
+	defer fs.Close()
+	if err != nil {
+		t.Error("could not initialize")
+	}
+	// Create new collection with 5 docs:
+	newCollection := "test123"
+	var ids []string
+	for i := 0; i < 5; i++ {
+		id, _ := fs.AddDocument(newCollection, map[string]interface{}{"a": i + 1})
+		ids = append(ids, id)
+	}
+
+	count, err := fs.CountDocuments(newCollection)
+	if err != nil {
+		t.Error("unable to count")
+	}
+	fmt.Println("Number of docs: ", count)
+	if count != 5 {
+		t.Error("wrong number of docs")
+	}
+	// TODO remove pause
+	time.Sleep(10 * time.Second)
+	// delete newly created docs:
+	for _, id := range ids {
+		err = fs.DeleteDocument(newCollection, id)
+		if err != nil {
+			t.Error("unable to delete")
+		}
+	}
+
+	count, err = fs.CountDocuments(newCollection)
+	if err != nil {
+		t.Error("unable to count")
+	}
+	if count != 0 {
+		t.Error("wrong number of docs")
 	}
 
 }
