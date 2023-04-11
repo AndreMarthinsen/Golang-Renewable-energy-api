@@ -25,8 +25,10 @@ type country struct {
 }
 
 const current = "current"
-const currentYear = "2021"
-const firstYear = "1965"
+const currentYearString = "2021"
+const currentYear = 2021
+//const firstYearString = "1965"
+const firstYear = 1965
 const yearSpan = 56
 const history = "history"
 const dataSetPath = "internal/assets/renewable-share-energy.csv"
@@ -62,10 +64,10 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, s string) {
 	var stats []renewableStats
     if s == "" {
 		stats = 
-		append(stats, readStatsFromFile(dataSetPath, currentYear, "")...)
+		append(stats, readStatsFromFile(dataSetPath, currentYearString, "")...)
 	} else {
 		stats = 
-		append(stats, readStatsFromFile(dataSetPath, currentYear, strings.ToUpper(s))...)
+		append(stats, readStatsFromFile(dataSetPath, currentYearString, strings.ToUpper(s))...)
 	}
 	// if len(stats) == 0 {
 	// 	http.Error(w, "Bad request", http.StatusBadRequest)
@@ -91,7 +93,7 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, s string) {
 				nil, 
 				&c)
 			for _, val := range c[0].Borders {
-				stats = append(stats, readStatsFromFile(dataSetPath, currentYear, val)...)
+				stats = append(stats, readStatsFromFile(dataSetPath, currentYearString, val)...)
 			}
 		}
 	}
@@ -107,7 +109,7 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, s string) {
 func handlerHistorical(w http.ResponseWriter, r *http.Request, s string) {
 	var stats []renewableStats
 	if s == "" {
-		stats = append(stats, readStatsFromFile(dataSetPath, currentYear, strings.ToUpper(s))...)
+		stats = append(stats, readStatsFromFile(dataSetPath, currentYearString, strings.ToUpper(s))...)
 		for i, val := range stats {
 			var tmp float64
 			tmp = readPercentageFromFile(dataSetPath, val.Isocode)
@@ -118,16 +120,11 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, s string) {
 	} else {
 		// The following checks if there is a query, if its correctly formatted, and if
 		// it is, it sets the bounds of the beginning and end of the country's energy history
-		start,err  := strconv.Atoi(firstYear)
-		if err != nil {
-			http.Error(w, "Bad request", http.StatusBadRequest)
-		}
-		end,err := strconv.Atoi(currentYear)
-		if err != nil {
-			http.Error(w, "Bad request", http.StatusBadRequest)
-		}
+		start := firstYear
+		end := currentYear
 		//TODO: put query-handling in its own function
 		if r.URL.RawQuery != "" {
+			var err error
 			query := r.URL.Query()
 			start, err = strconv.Atoi(query.Get("begin"))
 			if err != nil {
@@ -139,6 +136,9 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, s string) {
 			}
 		}
 		for i := start; i <= end; i++ {
+			if i > currentYear {
+				break
+			}
 			stats = append(stats, readStatsFromFile(dataSetPath, strconv.Itoa(i), strings.ToUpper(s))...)
 		}
 	}
