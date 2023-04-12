@@ -27,7 +27,7 @@ type CacheResponse struct {
 // should be posted along with a slice of country codes to be
 // looked up in cache or external API
 type CacheRequest struct {
-	ChannelPtr     chan CacheResponse
+	ChannelRef     chan CacheResponse
 	CountryRequest []string
 }
 
@@ -51,6 +51,8 @@ type Config struct {
 	PrimaryCache      string
 }
 
+// CacheMiss wraps the so far built up response and a modified CacheRequest containing
+// only the cca3 codes resulting in a cache miss.
 type CacheMiss struct {
 	Request  CacheRequest
 	Response CacheResponse
@@ -64,7 +66,9 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 	if cfg.DebugMode {
 		log.Println("Cache worker: running")
 	}
+	// map from cca3 codes to CacheEntry structs with borders and timestamp.
 	localCache := make(map[string]CacheEntry, 0)
+	// slice with any cache misses that need handling
 	cacheMisses := make([]CacheMiss, 0)
 	client := http.Client{}
 
@@ -81,15 +85,12 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 		log.Println("Cache worker: failed to purge old entries")
 		log.Println("^ details: ", err)
 	}
-	err = createCacheInDB(cfg, "TestStorage", localCache)
-	if err != nil {
-		log.Println("Cache worker: failed to create new cache file in DB")
-		log.Println("^ details: ", err)
-	}
+
 	previousUpdate := time.Now()
 
+	// Main request-handling loop. Runs until a stop signal is received or request channel is closed.
 	for {
-		select { // Runs loop until it receives signal on stop channel
+		select {
 		case <-stop:
 			if err = createCacheInDB(cfg, "ShutDownTest", localCache); err != nil {
 				log.Fatal("cache worker: failed to create DB on shutdown")
@@ -118,7 +119,7 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 				if cfg.DebugMode {
 					log.Println("returning response")
 				}
-				val.ChannelPtr <- response
+				val.ChannelRef <- response
 			} else { // Some misses, will be handled when default case occurs
 				val.CountryRequest = misses
 				cacheMisses = append(cacheMisses, CacheMiss{Request: val, Response: response})
@@ -135,7 +136,7 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 					if len(miss.Response.Neighbours) == 0 {
 						miss.Response.Status = http.StatusNotFound
 					} // Cache updated and response sent to handler
-					miss.Request.ChannelPtr <- miss.Response
+					miss.Request.ChannelRef <- miss.Response
 				}
 				cacheMisses = make([]CacheMiss, 0) // resets list over misses
 			}
@@ -156,7 +157,7 @@ func updateLocalCache(cfg *Config, client *http.Client, cache map[string]CacheEn
 	if cfg.DevelopmentMode { // Uses internal stubbing service when in development mode
 		url = consts.StubDomain + consts.CountryCodePath + "?codes=" + joinedCountryCodes
 	} else {
-		url = consts.StubDomain + consts.CountryCodePath + joinedCountryCodes
+		url = consts.CountryDomain + consts.CountryCodePath + "?codes=" + joinedCountryCodes
 	}
 	request, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -188,7 +189,7 @@ func getCodesStringFromMisses(misses []CacheMiss) string {
 		}
 	}
 	var countryCodes = make([]string, 0, len(missedCodes))
-	for code, _ := range missedCodes {
+	for code := range missedCodes {
 		countryCodes = append(countryCodes, code)
 	}
 	return strings.Join(countryCodes, ",")
