@@ -15,7 +15,6 @@ import (
 
 const assetPrefix = "./internal/assets/"
 const codesPrefix = "codes="
-const rootPath = "/"
 
 // For future reference https://www.iban.com/country-codes
 
