@@ -4,6 +4,7 @@ import (
 	"Assignment2/consts"
 	"Assignment2/util"
 	"encoding/csv"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -13,7 +14,7 @@ import (
 	"time"
 )
 
-type renewableStats struct {
+type renewableStatistics struct {
 	Name	   string `json:"name"`
 	Isocode    string `json:"isocode"`
 	Year	   string `json:"year,omitempty"`
@@ -29,14 +30,15 @@ const currentYearString = "2021"
 const currentYear = 2021
 //const firstYearString = "1965"
 const firstYear = 1965
+//	aritmethic operation to do this
 const yearSpan = 56
 const history = "history"
 const dataSetPath = "internal/assets/renewable-share-energy.csv"
 //const neighboursPrefix = "neighbours="
 const neighboursTrue = "TRUE"
 const restCountries = "http://129.241.150.113:8080/v3.1/"
-const countriesCode = "alpha/"
 const stubCodeAffix = "?codes="
+const countriesCode = "alpha/"+stubCodeAffix
 //const bordField = "?fields=borders" TODO: Remove if stubbing does not emulate field-specification
 
 // HandlerRenew Handler for the renewables endpoint: this checks if the request is GET, and calls the correct funtion
@@ -46,6 +48,7 @@ func HandlerRenew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed, only GET requests are supported", http.StatusNotImplemented)
 	}
 	path := util.FragmentsFromPath(r.URL.Path, consts.RenewablesPath)
+	// TODO: handle nothing after renewables
 	if len(path) < 2 {
 		path = append(path, "")
 	}
@@ -58,47 +61,55 @@ func HandlerRenew(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-//handlerCurrent Handles requests for renewable energy percentage for the current year in one country,
-//with possibility for returning the same information for that country's neighbours
-func handlerCurrent(w http.ResponseWriter, r *http.Request, s string) {
-	var stats []renewableStats
-    if s == "" {
+// handlerCurrent handles requests for renewable energy percentage for the current year in one country,
+// with possibility for returning the same information for that country's neighbours
+func handlerCurrent(w http.ResponseWriter, r *http.Request, code string) {
+	var stats []renewableStatistics
+	// checks if code is empty, or for a specific country
+	// if empty, it will find information for all countries in dataset
+	// if not empty, it will attempt to find information for that country
+	// TODO: unneccassry branch, cut to one call
+    if code == "" {
 		stats = 
 		append(stats, readStatsFromFile(dataSetPath, currentYearString, "")...)
 	} else {
 		stats = 
-		append(stats, readStatsFromFile(dataSetPath, currentYearString, strings.ToUpper(s))...)
+		append(stats, readStatsFromFile(dataSetPath, currentYearString, strings.ToUpper(code))...)
 	}
 	// if len(stats) == 0 {
 	// 	http.Error(w, "Bad request", http.StatusBadRequest)
 	// }
 	if r.URL.RawQuery != "" {
 		query := r.URL.Query()
-		if query.Get("neighbours") == neighboursTrue {
-			var c []country
+		if strings.ToUpper(query.Get("neighbours")) == neighboursTrue {
+			var neighbours []country
 			context := 
 			util.HandlerContext{Name: "current", Writer: &w, Client: &http.Client{Timeout: 10 * time.Second}}
 			var URL string
 			// TODO: refactor this into generic function that can handle both
 			// single country and country slice
 			if consts.Development {
-				URL = consts.StubDomain + consts.CountryCodePath + stubCodeAffix + strings.ToUpper(s)
+				URL = consts.StubDomain + consts.CountryCodePath + stubCodeAffix + strings.ToUpper(code)
 			} else {
-				URL = restCountries+countriesCode+s//+bordField
+				URL = restCountries+countriesCode+code//+bordField
 			}
-			util.HandleOutgoing(
+			msg, err := util.HandleOutgoing(
 				&context, 
 				http.MethodGet, 
 				URL, 
 				nil, 
-				&c)
-			for _, val := range c[0].Borders {
+				&neighbours)
+			if err != nil {
+				fmt.Fprintf(w, msg, err)
+			}
+			// Tries to find a country's neighbours, and appends them to the statistics slice
+			for _, val := range neighbours[0].Borders {
 				stats = append(stats, readStatsFromFile(dataSetPath, currentYearString, val)...)
 			}
 		}
 	}
 	if len(stats) == 0 {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Not", http.StatusNotFound)
 	}
 	http.Header.Add(w.Header(), "content-type", "application/json")
 	util.EncodeAndWriteResponse(&w, stats)
@@ -106,10 +117,11 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, s string) {
 
 //handlerHistorical Handles requests for the history of renewable energy in one country,
 //on a yearly basis. Has functionality for setting starting and ending year of renewables history
-func handlerHistorical(w http.ResponseWriter, r *http.Request, s string) {
-	var stats []renewableStats
-	if s == "" {
-		stats = append(stats, readStatsFromFile(dataSetPath, currentYearString, strings.ToUpper(s))...)
+func handlerHistorical(w http.ResponseWriter, r *http.Request, code string) {
+	var stats []renewableStatistics
+	// if no code is provided, a list of every country's average renewable percentage is returned
+	if code == "" {
+		stats = append(stats, readStatsFromFile(dataSetPath, currentYearString, strings.ToUpper(code))...)
 		for i, val := range stats {
 			tmp := readPercentageFromFile(dataSetPath, val.Isocode)
 			tmp = tmp/yearSpan
@@ -117,10 +129,11 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, s string) {
 			stats[i].Year = ""
 		}
 	} else {
-		// The following checks if there is a URL query, if its correctly formatted, and if
-		// it is, it sets the bounds of the beginning and end of the country's energy history
+		// set start and 
 		start := firstYear
 		end := currentYear
+		// The following checks if there is a URL query, if its correctly formatted, and if
+		// it is, it sets the bounds of the beginning and end of the country's energy history
 		//TODO: put query-handling in its own function
 		if r.URL.RawQuery != "" {
 			var err error
@@ -134,15 +147,17 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, s string) {
 				http.Error(w, "Bad request", http.StatusBadRequest)
 			}
 		}
+		// TODO: if begin is higher than end, error message
+		// TODO: error message if end is set too high "Last year in dataset is ..."
 		for i := start; i <= end; i++ {
 			if i > currentYear {
 				break
 			}
-			stats = append(stats, readStatsFromFile(dataSetPath, strconv.Itoa(i), strings.ToUpper(s))...)
+			stats = append(stats, readStatsFromFile(dataSetPath, strconv.Itoa(i), strings.ToUpper(code))...)
 		}
 	}
 	if len(stats) == 0 {
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, "Not found", http.StatusNotFound)
 	}
 	http.Header.Add(w.Header(), "content-type", "application/json")
 	util.EncodeAndWriteResponse(&w, stats)
@@ -150,8 +165,8 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, s string) {
 
 //readStatsFromFile fetches information from a cvs.file specified by path, 
 // puts in a slice of renewableStats and returns that slice
-func readStatsFromFile(p string, year string, code string) []renewableStats {
-	var tmp []renewableStats
+func readStatsFromFile(p string, year string, code string) []renewableStatistics {
+	var statistics []renewableStatistics
 	nr := readCSV(p)
 	for {
         record, err := nr.Read()
@@ -164,44 +179,43 @@ func readStatsFromFile(p string, year string, code string) []renewableStats {
 		if record[2] == year {
 			if code != "" {
 				if record[1] == code {
-					tmp = append(tmp, renewableStats{record[0], record[1], record[2], record[3]})
+					statistics = append(statistics, renewableStatistics{record[0], record[1], record[2], record[3]})
 				}
 			} else {
 				if record[1] != "" {
-					tmp = append(tmp, renewableStats{record[0], record[1], record[2], record[3]})
+					statistics = append(statistics, renewableStatistics{record[0], record[1], record[2], record[3]})
 				}
 			}			
 		}
 	}
-	return tmp
+	return statistics
 }
 
 func readPercentageFromFile(p string, /*year string,*/ code string) float64 {
-var tmp float64
-nr := readCSV(p)
-for {
-	record, err := nr.Read()
-	if err == io.EOF {
-		break
-	}
-	if err != nil {
-		log.Fatal(err)
-	}
-	//if record[2] == year {
-		if code != "" {
+	var percentage float64
+	nr := readCSV(p)
+	for {
+		record, err := nr.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+		//if record[2] == year {
 			if record[1] == code {
 				per, _ := strconv.ParseFloat(record[3], 32) 
-				tmp += per
+				percentage += per
 			}
-		} else {
-			if record[1] != "" {
-				per, _ := strconv.ParseFloat(record[3], 32)
-				tmp += per
-			}
-		}			
-	//}
-}
-return tmp
+			// } else {
+			// 	if record[1] != "" {
+			// 		per, _ := strconv.ParseFloat(record[3], 32)
+			// 		percentage += per
+			// 	}
+			// }			
+		//}
+	}
+	return percentage
 }
 
 func readCSV(p string) *csv.Reader {
