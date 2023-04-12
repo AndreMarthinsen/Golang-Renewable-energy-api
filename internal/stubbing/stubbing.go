@@ -18,18 +18,6 @@ const codesPrefix = "codes="
 const rootPath = "/"
 
 // For future reference https://www.iban.com/country-codes
-const cc3aVietNam = "VNM"
-const cc3aNorthKorea = "PRK"
-const cc3aSouthKorea = "KOR"
-const cc3aNorway = "NOR"
-const cc3aSweden = "SWE"
-const cc3aFinland = "FIN"
-const cc3aRussia = "RUS"
-
-// of interest as TJK is not in energy dataset, but its neighbouring countries are.
-const cc3aTajikistan = "TJK" // no energy data
-const cc3aChina = "CHN"      // neighbour of Tajikistan, does exist
-const cc3aUzbekistan = "UZB" // same as above
 
 // parseFile parses a file specified by filename
 //
