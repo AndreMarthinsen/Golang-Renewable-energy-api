@@ -20,7 +20,7 @@ func TestRunCacheWorker(t *testing.T) {
 	runCacheTest := func(codes []string, expected caching.CacheResponse) func(*testing.T) {
 		return func(t *testing.T) {
 			ret := make(chan caching.CacheResponse)
-			requests <- caching.CacheRequest{ChannelPtr: ret, CountryRequest: codes}
+			requests <- caching.CacheRequest{ChannelRef: ret, CountryRequest: codes}
 			result := <-ret
 			if result.Status != expected.Status {
 				t.Error("Expected status ", expected.Status, ", got ", result.Status)
