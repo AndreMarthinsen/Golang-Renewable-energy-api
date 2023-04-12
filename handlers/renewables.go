@@ -32,7 +32,7 @@ const firstYear = 1965
 const yearSpan = 56
 const history = "history"
 const dataSetPath = "internal/assets/renewable-share-energy.csv"
-const neighboursPrefix = "neighbours="
+//const neighboursPrefix = "neighbours="
 const neighboursTrue = "TRUE"
 const restCountries = "http://129.241.150.113:8080/v3.1/"
 const countriesCode = "alpha/"
