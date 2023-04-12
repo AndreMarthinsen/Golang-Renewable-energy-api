@@ -31,10 +31,9 @@ const currentYear = 2021
 //const firstYearString = "1965"
 const firstYear = 1965
 //	aritmethic operation to do this
-const yearSpan = 56
+const yearSpan = currentYear - firstYear
 const history = "history"
 const dataSetPath = "internal/assets/renewable-share-energy.csv"
-//const neighboursPrefix = "neighbours="
 const neighboursTrue = "TRUE"
 const restCountries = "http://129.241.150.113:8080/v3.1/"
 const stubCodeAffix = "?codes="
@@ -44,20 +43,21 @@ const countriesCode = "alpha/"+stubCodeAffix
 // HandlerRenew Handler for the renewables endpoint: this checks if the request is GET, and calls the correct funtion
 // for current renewable percentage or historical renewable percentage
 func HandlerRenew(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed, only GET requests are supported", http.StatusNotImplemented)
-	}
-	path := util.FragmentsFromPath(r.URL.Path, consts.RenewablesPath)
-	// TODO: handle nothing after renewables
-	if len(path) < 2 {
-		path = append(path, "")
-	}
-		
-	//TODO Implement handler for historical renewable percentages
-	switch path[0] {
-	case current: handlerCurrent(w, r, path[1])
-	case history: handlerHistorical(w, r, path[1])
-	default: http.Error(w, "Bad request", http.StatusBadRequest)
+	switch r.Method {
+	case http.MethodGet:
+		path := util.FragmentsFromPath(r.URL.Path, consts.RenewablesPath)
+		// TODO: handle nothing after renewables
+		if len(path) < 2 {
+			path = append(path, "")
+		}
+			
+		//TODO Implement handler for historical renewable percentages
+		switch path[0] {
+		case current: handlerCurrent(w, r, path[1])
+		case history: handlerHistorical(w, r, path[1])
+		default: http.Error(w, "Bad request", http.StatusBadRequest)
+		}
+	default: http.Error(w, "Method not implemented, only GET requests are supported", http.StatusNotImplemented)
 	}
 }
 
