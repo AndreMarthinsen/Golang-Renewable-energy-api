@@ -73,8 +73,8 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, s string) {
 	// 	http.Error(w, "Bad request", http.StatusBadRequest)
 	// }
 	if r.URL.RawQuery != "" {
-		getNeighbours := strings.ToUpper(strings.TrimLeft(r.URL.RawQuery, neighboursPrefix))
-		if getNeighbours == neighboursTrue {
+		query := r.URL.Query()
+		if query.Get("neighbours") == neighboursTrue {
 			var c []country
 			context := 
 			util.HandlerContext{Name: "current", Writer: &w, Client: &http.Client{Timeout: 10 * time.Second}}
@@ -111,14 +111,13 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, s string) {
 	if s == "" {
 		stats = append(stats, readStatsFromFile(dataSetPath, currentYearString, strings.ToUpper(s))...)
 		for i, val := range stats {
-			var tmp float64
-			tmp = readPercentageFromFile(dataSetPath, val.Isocode)
+			tmp := readPercentageFromFile(dataSetPath, val.Isocode)
 			tmp = tmp/yearSpan
 			stats[i].Percentage = strconv.FormatFloat(tmp, 'f', -1, 64)
 			stats[i].Year = ""
 		}
 	} else {
-		// The following checks if there is a query, if its correctly formatted, and if
+		// The following checks if there is a URL query, if its correctly formatted, and if
 		// it is, it sets the bounds of the beginning and end of the country's energy history
 		start := firstYear
 		end := currentYear
