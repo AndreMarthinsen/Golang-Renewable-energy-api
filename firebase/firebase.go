@@ -101,6 +101,5 @@ func (f *FirestoreContext) CountDocuments(collection string) (int, error) {
 		}
 		count++
 	}
-
 	return count, nil
 }

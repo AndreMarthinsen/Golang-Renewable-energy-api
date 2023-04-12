@@ -37,13 +37,12 @@ func TestAddDocument(t *testing.T) {
 	}
 
 	id, err := fs.AddDocument("testCollection", testData)
-
 	if err != nil {
 		t.Error("could not create document")
 	}
 
-	if utf8.RuneCountInString(id) == 0 {
-		t.Error("unable to return id")
+	if utf8.RuneCountInString(id) != 20 {
+		t.Error("unable to return valid id")
 	}
 
 }
