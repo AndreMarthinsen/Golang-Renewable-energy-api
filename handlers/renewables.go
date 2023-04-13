@@ -40,9 +40,10 @@ const historyPath = "history"
 const dataSetPath = "internal/assets/renewable-share-energy.csv"
 
 // External - paths
-const restCountries = "http://129.241.150.113:8080/v3.1/"
-const stubCodeAffix = "?codes="
-const countriesCode = "alpha/"+stubCodeAffix
+const restCountries = "http://129.241.150.113:8080/"
+//const stubCodeAffix = "?codes="
+const countriesCode = "?codes="
+const bordersAffix = "&fields=borders"
 
 // HandlerRenew Handler for the renewables endpoint: this checks if the request is GET, and calls the correct funtion
 // for current renewable percentage or historical renewable percentage
@@ -93,11 +94,13 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, code string) {
 			context := 
 			util.HandlerContext{Name: "current", Writer: &w, Client: &http.Client{Timeout: 10 * time.Second}}
 			var URL string
+			// forms URL for request, formatted to either stubserver or external API
 			if consts.Development {
-				URL = consts.StubDomain + consts.CountryCodePath + stubCodeAffix + strings.ToUpper(code)
+				URL = consts.StubDomain + consts.CountryCodePath + countriesCode + strings.ToUpper(code)
 			} else {
-				URL = restCountries+countriesCode+code//+bordField
+				URL = restCountries+consts.CountryCodePath+countriesCode+code+bordersAffix
 			}
+			// sends request to stubserver/API
 			msg, err := util.HandleOutgoing(
 				&context, 
 				http.MethodGet, 
@@ -107,10 +110,13 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, code string) {
 			if err != nil {
 				fmt.Fprintf(w, msg, err)
 			}
-			// Tries to find a country's neighbours, and appends them to the statistics slice
-			for _, val := range neighbours[0].Neighbours {
-				stats = append(stats, readStatsFromFile(dataSetPath, lastYearString, val)...)
+			// if country has neighbours according to stub/API, tries to find them in dataset
+			if len(neighbours) > 0 {
+				for _, val := range neighbours[0].Neighbours {
+					stats = append(stats, readStatsFromFile(dataSetPath, lastYearString, val)...)
+				}
 			}
+			
 		}
 	}
 	if len(stats) == 0 {
@@ -134,12 +140,12 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, code string) {
 			stats[i].Year = ""
 		}
 	} else {
-		// set start and 
+		// set start and end to match 
 		start := firstYear
 		end := lastYear
 		// The following checks if there is a URL query, if its correctly formatted, and if
 		// it is, it sets the bounds of the beginning and end of the country's energy history
-		//TODO: put query-handling in its own function
+		// TODO: put query-handling in its own function
 		if r.URL.RawQuery != "" {
 			var err error
 			query := r.URL.Query()
@@ -154,7 +160,7 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, code string) {
 		}
 		// TODO: if begin is higher than end, error message
 		// TODO: error message if end is set too high "Last year in dataset is ..."
-		for i := start; i <= end && i > lastYear; i++ {
+		for i := start; i <= end && i <= lastYear; i++ {
 			if i > lastYear {
 				break
 			}
@@ -168,7 +174,7 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, code string) {
 	util.EncodeAndWriteResponse(&w, stats)
 }
 
-//readStatsFromFile fetches information from a cvs.file specified by path, 
+// readStatsFromFile fetches information from a cvs.file specified by path, 
 // puts in a slice of renewableStats and returns that slice
 func readStatsFromFile(p string, year string, code string) []renewableStatistics {
 	var statistics []renewableStatistics
@@ -181,12 +187,18 @@ func readStatsFromFile(p string, year string, code string) []renewableStatistics
         if err != nil {
             log.Fatal(err)
         }
+		// if the year-field in the current line in the file matches the year argument
+		// a new statistics struct, containing that line's information is appended to the slice
 		if record[2] == year {
+			// if a cc3a code has been passed, only lines with countries matching that code
+			// will be encapsulated
 			if code != "" {
 				if record[1] == code {
 					statistics = append(statistics, renewableStatistics{record[0], record[1], record[2], record[3]})
 				}
 			} else {
+				// if an emtpy string is passed as code, all lines with cc3a codes (i.e. only countries, not Africa)
+				// will be encapsulated and appended
 				if record[1] != "" {
 					statistics = append(statistics, renewableStatistics{record[0], record[1], record[2], record[3]})
 				}
