@@ -6,7 +6,6 @@ import (
 	"cloud.google.com/go/firestore"
 	"context"
 	firebase "firebase.google.com/go"
-	"fmt"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"log"
@@ -83,7 +82,6 @@ func NewFirestoreContext(configFilePath string) (FirestoreContext, error) {
 func (f *FirestoreContext) Close() error {
 	err := f.client.Close()
 	if err != nil {
-		// TODO only log the error
 		log.Println("could not close Firebase client")
 		return err
 	}
@@ -123,17 +121,25 @@ func (f *FirestoreContext) DeleteDocument(collection, id string) error {
 }
 
 // ReadDocument reads a specific document by id.
-// TODO return interface{} in separate function ReadToObject, usin pointer to object and dataTo()
 func (f *FirestoreContext) ReadDocument(collection, id string) (map[string]interface{}, error) {
 	documentSnap, err := f.client.Collection(collection).Doc(id).Get(*f.ctx)
 	if err != nil {
 		return nil, err
 	}
 	document := documentSnap.Data()
-	// TODO remove
-	fmt.Println("document data: ", document)
 
 	return document, nil
+}
+
+// ReadDocumentGeneral reads a specific document into a predefined struct.
+func (f *FirestoreContext) ReadDocumentGeneral(collection, id string, document interface{}) error {
+	documentSnap, err := f.client.Collection(collection).Doc(id).Get(*f.ctx)
+	if err != nil {
+		log.Println("could not read document: ", id)
+		return err
+	}
+	document = documentSnap.DataTo(document)
+	return nil
 }
 
 // CountDocuments counts all docs in specified collection
