@@ -15,9 +15,19 @@ import (
 // FirestoreContext client and context for DB
 type FirestoreContext struct {
 	client *firestore.Client
-	ctx    context.Context
+	ctx    *context.Context
 }
 
+// TODO keep edited version only
+/*
+}// FirestoreContext client and context for DB
+type FirestoreContext struct {
+	client *firestore.Client
+	ctx    context.Context
+}
+*/
+
+/*
 // TODO maybe change to constructor function
 // Initialize lets app communicate with a cloud Firestore database.
 // configFilePath refers to account credentials config file created
@@ -43,18 +53,37 @@ func (f *FirestoreContext) Initialize(configFilePath string) error {
 	}
 	return nil
 }
+*/
+
+func NewFirestoreContext(configFilePath string) (FirestoreContext, error) {
+	fsContext := FirestoreContext{}
+	*fsContext.ctx = context.Background()
+
+	// Load service account credentials:
+	serviceAccount := option.WithCredentialsFile(configFilePath)
+	app, err := firebase.NewApp(*fsContext.ctx, nil, serviceAccount)
+	if err != nil {
+		log.Println("unable to create new firebase app")
+		return FirestoreContext{}, err
+	}
+	// Instantiate firebase client
+	fsContext.client, err = app.Firestore(*fsContext.ctx)
+	if err != nil {
+		log.Println("unable to instantiate firestore client")
+		return FirestoreContext{}, err
+	}
+	return fsContext, err
+}
 
 // Close closes the client
-func (f *FirestoreContext) Close() {
-	// Close down client:
-	// TODO remove defer from function
-	defer func() {
-		err := f.client.Close()
-		if err != nil {
-			// TODO only log the error
-			log.Fatal("Could not close Firebase client. Error:", err)
-		}
-	}()
+func (f *FirestoreContext) Close() error {
+	err := f.client.Close()
+	if err != nil {
+		// TODO only log the error
+		log.Println("could not close Firebase client")
+		return err
+	}
+	return nil
 }
 
 // AddDocument stores a new document in a Firestore collection (by name).
@@ -62,7 +91,7 @@ func (f *FirestoreContext) Close() {
 // TODO rename, and create a function to create doc with specified id
 // TODO interface{} as data input
 func (f *FirestoreContext) AddDocument(collection string, document map[string]interface{}) (string, error) {
-	id, _, err := f.client.Collection(collection).Add(f.ctx, document)
+	id, _, err := f.client.Collection(collection).Add(*f.ctx, document)
 	if err != nil {
 		log.Println("Duplicate document id generated")
 		return "", err
@@ -72,7 +101,7 @@ func (f *FirestoreContext) AddDocument(collection string, document map[string]in
 
 // DeleteDocument deletes data with a specific id from a collection.
 func (f *FirestoreContext) DeleteDocument(collection, id string) error {
-	_, err := f.client.Collection(collection).Doc(id).Delete(f.ctx)
+	_, err := f.client.Collection(collection).Doc(id).Delete(*f.ctx)
 	if err != nil {
 		// TODO more specific log
 		log.Println("Error while deleting")
@@ -84,7 +113,7 @@ func (f *FirestoreContext) DeleteDocument(collection, id string) error {
 // ReadDocument reads a specific document by id.
 // TODO return interface{} in separate function ReadToObject, usin pointer to object and dataTo()
 func (f *FirestoreContext) ReadDocument(collection, id string) (map[string]interface{}, error) {
-	documentSnap, err := f.client.Collection(collection).Doc(id).Get(f.ctx)
+	documentSnap, err := f.client.Collection(collection).Doc(id).Get(*f.ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +127,7 @@ func (f *FirestoreContext) ReadDocument(collection, id string) (map[string]inter
 // CountDocuments counts all docs in specified collection
 func (f *FirestoreContext) CountDocuments(collection string) (int, error) {
 	count := 0
-	iter := f.client.Collection(collection).Documents(f.ctx)
+	iter := f.client.Collection(collection).Documents(*f.ctx)
 
 	for {
 		_, err := iter.Next()
