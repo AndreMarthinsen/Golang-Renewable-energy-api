@@ -16,21 +16,8 @@ import (
 
 const assetPrefix = "./internal/assets/"
 const codesPrefix = "codes="
-const rootPath = "/"
 
 // For future reference https://www.iban.com/country-codes
-const cc3aVietNam = "VNM"
-const cc3aNorthKorea = "PRK"
-const cc3aSouthKorea = "KOR"
-const cc3aNorway = "NOR"
-const cc3aSweden = "SWE"
-const cc3aFinland = "FIN"
-const cc3aRussia = "RUS"
-
-// of interest as TJK is not in energy dataset, but its neighbouring countries are.
-const cc3aTajikistan = "TJK" // no energy data
-const cc3aChina = "CHN"      // neighbour of Tajikistan, does exist
-const cc3aUzbekistan = "UZB" // same as above
 
 // parseFile parses a file specified by filename
 //
@@ -62,42 +49,38 @@ func StubHandler(debug bool) func(http.ResponseWriter, *http.Request) {
 		}
 		switch path { // Uses switch for easy expansion
 		case consts.CountryCodePath:
-			{
-				codes := strings.FieldsFunc(
-					r.URL.Query().Get("codes"),
-					func(c rune) bool { return c == ',' },
-				)
-				if debug {
-					log.Println("stub debug: cca3 queries prior to filtering: ", codes)
-				}
-				codes = filterCountryCodes(codes)
-				if len(codes) == 0 { // Indicates no codes of valid length [2, 3]
-					response := "{\"status\":400,\"message\":\"Bad Request\"}"
-					if _, err := fmt.Fprint(w, response); err != nil {
-						log.Fatal("stub handler failed to return response body to client.")
-					}
-					w.WriteHeader(http.StatusBadRequest)
-					return
-				}
-				response, err := getJsonByCountryCode(codes)
-				if err != nil {
-					response = "{\"status\":404,\"message\":\"Not Found\"}"
-					w.WriteHeader(http.StatusNotFound)
-				} else {
-					w.WriteHeader(http.StatusOK)
-				}
-				if _, err = fmt.Fprint(w, response); err != nil {
+			codes := strings.FieldsFunc(
+				r.URL.Query().Get("codes"),
+				func(c rune) bool { return c == ',' },
+			)
+			if debug {
+				log.Println("stub debug: cca3 queries prior to filtering: ", codes)
+			}
+			codes = filterCountryCodes(codes)
+			if len(codes) == 0 { // Indicates no codes of valid length [2, 3]
+				response := "{\"status\":400,\"message\":\"Bad Request\"}"
+				if _, err := fmt.Fprint(w, response); err != nil {
 					log.Fatal("stub handler failed to return response body to client.")
 				}
+				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-		default:
-			{
-				if debug {
-					log.Println("Path: " + r.URL.Path + " not currently supported by stubbing service.")
-				}
-				http.Error(w, "Not a recognized path for stubbing", http.StatusNotImplemented)
+			response, err := getJsonByCountryCode(codes)
+			if err != nil {
+				response = "{\"status\":404,\"message\":\"Not Found\"}"
+				w.WriteHeader(http.StatusNotFound)
+			} else {
+				w.WriteHeader(http.StatusOK)
 			}
+			if _, err = fmt.Fprint(w, response); err != nil {
+				log.Fatal("stub handler failed to return response body to client.")
+			}
+			return
+		default:
+			if debug {
+				log.Println("Path: " + r.URL.Path + " not currently supported by stubbing service.")
+			}
+			http.Error(w, "Not a recognized path for stubbing", http.StatusNotImplemented)
 		}
 	}
 }
@@ -137,20 +120,24 @@ func filterCountryCodes(countryCodes []string) []string {
 
 // RunSTUBServer runs a stubbing service using the net/http module.
 // See StubHandler for closer detail on what stubbing is provided by the service.
-func RunSTUBServer(group *sync.WaitGroup, port string) {
+func RunSTUBServer(group *sync.WaitGroup, port string, stop chan struct{}) {
 	defer group.Done()
 
-	handlers := map[string]func(http.ResponseWriter, *http.Request){
-		rootPath: StubHandler(true),
-	}
-
-	for path, function := range handlers {
-		http.HandleFunc(path, function)
-	}
 	log.Println("STUB service running on port", port)
 
-	err := http.ListenAndServe(":"+port, nil)
-	if err != nil {
-		log.Fatal(err)
+	server := http.Server{
+		Addr:    ":" + port,
+		Handler: http.HandlerFunc(StubHandler(true)),
 	}
+
+	go func() {
+		err := server.ListenAndServe()
+		log.Println("stub service shut down: ", err)
+	}()
+
+	<-stop // waits on stop signal to shut down the stub server
+	if err := server.Shutdown(nil); err != nil {
+		log.Println("failed to properly shut down stubbing service")
+	}
+
 }
