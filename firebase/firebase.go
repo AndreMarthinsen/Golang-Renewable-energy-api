@@ -56,7 +56,11 @@ func (f *FirestoreContext) Initialize(configFilePath string) error {
 */
 
 func NewFirestoreContext(configFilePath string) (FirestoreContext, error) {
-	fsContext := FirestoreContext{}
+	fsContext := FirestoreContext{
+		client: new(firestore.Client),
+		ctx:    new(context.Context),
+	}
+
 	*fsContext.ctx = context.Background()
 
 	// Load service account credentials:
