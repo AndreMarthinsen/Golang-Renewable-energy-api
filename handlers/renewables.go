@@ -14,48 +14,55 @@ import (
 	"time"
 )
 
+// struct that encapsulates information that will be returned for a successful request
 type renewableStatistics struct {
 	Name	   string `json:"name"`
 	Isocode    string `json:"isocode"`
-	Year	   string `json:"year,omitempty"`
+	Year	   string `json:"year,omitempty"` // if empty, will not be encoded in the response
 	Percentage string `json:"percentage"`
 }
 
+// contains a country's neighbouring countries, used in decoding response
+// from restcountries/stubbing
 type country struct {
-	Borders    []string `json:"borders"`
+	Neighbours    []string `json:"borders"`
 }
 
-const current = "current"
-const currentYearString = "2021"
-const currentYear = 2021
-//const firstYearString = "1965"
+// Dataset values TODO: Write csv.parsing function that can initialize
+const lastYearString = "2021"
+const lastYear = 2021
 const firstYear = 1965
-//	aritmethic operation to do this
-const yearSpan = currentYear - firstYear
-const history = "history"
+const yearSpan = lastYear - firstYear
+
+// Internal - paths
+const currentPath = "current"
+const historyPath = "history"
 const dataSetPath = "internal/assets/renewable-share-energy.csv"
-const neighboursTrue = "TRUE"
+
+// External - paths
 const restCountries = "http://129.241.150.113:8080/v3.1/"
 const stubCodeAffix = "?codes="
 const countriesCode = "alpha/"+stubCodeAffix
-//const bordField = "?fields=borders" TODO: Remove if stubbing does not emulate field-specification
 
 // HandlerRenew Handler for the renewables endpoint: this checks if the request is GET, and calls the correct funtion
 // for current renewable percentage or historical renewable percentage
 func HandlerRenew(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
+	switch r.Method { // switch for easy expansion
 	case http.MethodGet:
 		path := util.FragmentsFromPath(r.URL.Path, consts.RenewablesPath)
-		// TODO: handle nothing after renewables
-		if len(path) < 2 {
-			path = append(path, "")
+
+		// if path is empty after /renewables/, returns error message
+		if len(path) == 0 {
+			http.Error(w, "Not found, only /current/ and /history/ supported", http.StatusNotFound)
+		} else if len(path) < 2 { 	// if no cc3a-code is supplied with request,
+			path = append(path, "") // appends an empty string that tells handlers
+									// to find infomation about all countries
 		}
-			
-		//TODO Implement handler for historical renewable percentages
+		// checks if path contains /current/ or /history/, if not error message
 		switch path[0] {
-		case current: handlerCurrent(w, r, path[1])
-		case history: handlerHistorical(w, r, path[1])
-		default: http.Error(w, "Bad request", http.StatusBadRequest)
+		case currentPath: handlerCurrent(w, r, path[1])
+		case historyPath: handlerHistorical(w, r, path[1])
+		default: http.Error(w, "Not found, only /current/ and /history/ supported", http.StatusNotFound)
 		}
 	default: http.Error(w, "Method not implemented, only GET requests are supported", http.StatusNotImplemented)
 	}
@@ -65,29 +72,27 @@ func HandlerRenew(w http.ResponseWriter, r *http.Request) {
 // with possibility for returning the same information for that country's neighbours
 func handlerCurrent(w http.ResponseWriter, r *http.Request, code string) {
 	var stats []renewableStatistics
-	// checks if code is empty, or for a specific country
-	// if empty, it will find information for all countries in dataset
-	// if not empty, it will attempt to find information for that country
-	// TODO: unneccassry branch, cut to one call
-    if code == "" {
-		stats = 
-		append(stats, readStatsFromFile(dataSetPath, currentYearString, "")...)
-	} else {
-		stats = 
-		append(stats, readStatsFromFile(dataSetPath, currentYearString, strings.ToUpper(code))...)
-	}
-	// if len(stats) == 0 {
-	// 	http.Error(w, "Bad request", http.StatusBadRequest)
-	// }
+	// Tries to find countries matching code in dataset
+	// if the emtpy string is passed, all countries will be returned
+	stats = 
+	append(stats, readStatsFromFile(dataSetPath, lastYearString, strings.ToUpper(code))...)
+	//
+	if len(stats) == 0 {
+	 	http.Error(w, "Not found", http.StatusNotFound)
+	 }
+	// If a neighbours query has been, attempts to parse into bool
+	// TODO: Move query-parsing into own function
 	if r.URL.RawQuery != "" {
 		query := r.URL.Query()
-		if strings.ToUpper(query.Get("neighbours")) == neighboursTrue {
+		neighboursTrue, err := strconv.ParseBool(query.Get("neighbours"))
+		if err != nil {
+			http.Error(w, "Bad request, neighbours must equal true or false", http.StatusBadRequest)
+		}
+		if neighboursTrue {
 			var neighbours []country
 			context := 
 			util.HandlerContext{Name: "current", Writer: &w, Client: &http.Client{Timeout: 10 * time.Second}}
 			var URL string
-			// TODO: refactor this into generic function that can handle both
-			// single country and country slice
 			if consts.Development {
 				URL = consts.StubDomain + consts.CountryCodePath + stubCodeAffix + strings.ToUpper(code)
 			} else {
@@ -103,8 +108,8 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, code string) {
 				fmt.Fprintf(w, msg, err)
 			}
 			// Tries to find a country's neighbours, and appends them to the statistics slice
-			for _, val := range neighbours[0].Borders {
-				stats = append(stats, readStatsFromFile(dataSetPath, currentYearString, val)...)
+			for _, val := range neighbours[0].Neighbours {
+				stats = append(stats, readStatsFromFile(dataSetPath, lastYearString, val)...)
 			}
 		}
 	}
@@ -121,7 +126,7 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, code string) {
 	var stats []renewableStatistics
 	// if no code is provided, a list of every country's average renewable percentage is returned
 	if code == "" {
-		stats = append(stats, readStatsFromFile(dataSetPath, currentYearString, strings.ToUpper(code))...)
+		stats = append(stats, readStatsFromFile(dataSetPath, lastYearString, strings.ToUpper(code))...)
 		for i, val := range stats {
 			tmp := readPercentageFromFile(dataSetPath, val.Isocode)
 			tmp = tmp/yearSpan
@@ -131,7 +136,7 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, code string) {
 	} else {
 		// set start and 
 		start := firstYear
-		end := currentYear
+		end := lastYear
 		// The following checks if there is a URL query, if its correctly formatted, and if
 		// it is, it sets the bounds of the beginning and end of the country's energy history
 		//TODO: put query-handling in its own function
@@ -149,8 +154,8 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, code string) {
 		}
 		// TODO: if begin is higher than end, error message
 		// TODO: error message if end is set too high "Last year in dataset is ..."
-		for i := start; i <= end; i++ {
-			if i > currentYear {
+		for i := start; i <= end && i > lastYear; i++ {
+			if i > lastYear {
 				break
 			}
 			stats = append(stats, readStatsFromFile(dataSetPath, strconv.Itoa(i), strings.ToUpper(code))...)
@@ -191,7 +196,7 @@ func readStatsFromFile(p string, year string, code string) []renewableStatistics
 	return statistics
 }
 
-func readPercentageFromFile(p string, /*year string,*/ code string) float64 {
+func readPercentageFromFile(p string, code string) float64 {
 	var percentage float64
 	nr := readCSV(p)
 	for {
@@ -202,18 +207,10 @@ func readPercentageFromFile(p string, /*year string,*/ code string) float64 {
 		if err != nil {
 			log.Fatal(err)
 		}
-		//if record[2] == year {
-			if record[1] == code {
-				per, _ := strconv.ParseFloat(record[3], 32) 
-				percentage += per
-			}
-			// } else {
-			// 	if record[1] != "" {
-			// 		per, _ := strconv.ParseFloat(record[3], 32)
-			// 		percentage += per
-			// 	}
-			// }			
-		//}
+		if record[1] == code {
+			per, _ := strconv.ParseFloat(record[3], 32) 
+			percentage += per
+		}
 	}
 	return percentage
 }
