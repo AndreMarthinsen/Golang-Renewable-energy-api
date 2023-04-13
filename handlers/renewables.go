@@ -157,13 +157,20 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, code string) {
 			if err != nil {
 				http.Error(w, "Bad request", http.StatusBadRequest)
 			}
-		}
-		// TODO: if begin is higher than end, error message
-		// TODO: error message if end is set too high "Last year in dataset is ..."
-		for i := start; i <= end && i <= lastYear; i++ {
-			if i > lastYear {
-				break
+			// Sends error if end year has been set to higher than start year
+			if start > end {
+				http.Error(w, "Bad request, begin must be smaller than end", http.StatusBadRequest)
 			}
+			// If end has been set as higher than the last year in the dataset, 
+			// it is instead set to the last year
+			// TODO: consider setting this as as bad request error instead 
+			if end > lastYear {
+				end = lastYear
+			}
+		}
+		// Adds yearly percentages for span from start to end
+		// if not set by user, it will be from the first to the last year in the dataset
+		for i := start; i <= end && i <= lastYear; i++ {
 			stats = append(stats, readStatsFromFile(dataSetPath, strconv.Itoa(i), strings.ToUpper(code))...)
 		}
 	}
@@ -208,6 +215,8 @@ func readStatsFromFile(p string, year string, code string) []renewableStatistics
 	return statistics
 }
 
+// readPercentageFromFile parses a csv file (i.e., the dataset) and returns the sum
+// of a given country's renewable energy percentages, found by cc3a matching
 func readPercentageFromFile(p string, code string) float64 {
 	var percentage float64
 	nr := readCSV(p)
@@ -219,6 +228,8 @@ func readPercentageFromFile(p string, code string) float64 {
 		if err != nil {
 			log.Fatal(err)
 		}
+		// if the line in the file has a cc3a code matching the code-param,
+		// its renewable energy percentage is added to the current sum
 		if record[1] == code {
 			per, _ := strconv.ParseFloat(record[3], 32) 
 			percentage += per
