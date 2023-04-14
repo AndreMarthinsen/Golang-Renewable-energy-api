@@ -5,7 +5,8 @@ package firebase
 import (
 	"cloud.google.com/go/firestore"
 	"context"
-	firebase "firebase.google.com/go"
+	// TODO rename package to avoid name collisions
+	fb "firebase.google.com/go"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"log"
@@ -53,7 +54,8 @@ func (f *FirestoreContext) Initialize(configFilePath string) error {
 	return nil
 }
 */
-
+// TODO remove duplicate function
+/*
 func NewFirestoreContext(configFilePath string) (FirestoreContext, error) {
 	fsContext := FirestoreContext{
 		client: new(firestore.Client),
@@ -76,6 +78,40 @@ func NewFirestoreContext(configFilePath string) (FirestoreContext, error) {
 		return FirestoreContext{}, err
 	}
 	return fsContext, err
+}
+
+// Close closes the client
+func (f *FirestoreContext) Close() error {
+	err := f.client.Close()
+	if err != nil {
+		log.Println("could not close Firebase client")
+		return err
+	}
+	return nil
+}
+*/
+
+func NewFirestoreContext(configFilePath string, config Config) error {
+
+	config.FirestoreClient = new(firestore.Client)
+	config.Ctx = new(context.Context)
+
+	*config.Ctx = context.Background()
+
+	// Load service account credentials:
+	serviceAccount := option.WithCredentialsFile(configFilePath)
+	app, err := fb.NewApp(*config.Ctx, nil, serviceAccount)
+	if err != nil {
+		log.Println("unable to create new firebase app")
+		return err
+	}
+	// Instantiate firebase client
+	config.FirestoreClient, err = app.Firestore(*config.Ctx)
+	if err != nil {
+		log.Println("unable to instantiate firestore client")
+		return err
+	}
+	return nil
 }
 
 // Close closes the client
