@@ -41,7 +41,7 @@ func main() {
 
 	client, err := app.Firestore(ctx)
 	if err != nil {
-		log.Fatal("Failed to set up caching client")
+		log.Fatal("Failed to set up firestore client")
 	}
 
 	config := util.Config{

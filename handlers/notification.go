@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"Assignment2/consts"
 	"Assignment2/fsutils"
 	"Assignment2/util"
 	"encoding/json"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"net/http"
 	"time"
 )
@@ -85,8 +88,38 @@ func registerWebhook(handler *util.HandlerContext, cfg *util.Config, r *http.Req
 // Path: /energy/v1/notifications/{id},
 // and deletes a webhook if it is correctly identified.
 // TODO: Response is up to us. Should not expose any vital information.
-func deleteWebhook(context *util.HandlerContext, cfg *util.Config, r *http.Request) {
-
+func deleteWebhook(handler *util.HandlerContext, cfg *util.Config, r *http.Request) {
+	segments := util.FragmentsFromPath(r.URL.Path, consts.NotificationPath)
+	if len(segments) != 1 {
+		http.Error(*handler.Writer,
+			"Not a valid path. For deletion, use /energy/v1/notifications/{id}",
+			http.StatusBadRequest,
+		)
+		return
+	}
+	_, err := fsutils.ReadDocument(cfg, cfg.WebhookCollection, segments[0])
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			http.Error(*handler.Writer,
+				"No webhook deleted",
+				http.StatusNotFound, // Document doesn't exist.
+			)
+		} else {
+			http.Error(*handler.Writer,
+				"Something went wrong...",
+				http.StatusInternalServerError, // Firestore interaction failed.
+			)
+		}
+		return
+	}
+	if err := fsutils.DeleteDocument(cfg, cfg.WebhookCollection, segments[0]); err != nil {
+		http.Error(*handler.Writer,
+			"Something went wrong...",
+			http.StatusInternalServerError, // Error indicates a failure to communicate
+		) // with DB. Document not existing returns no error.
+		return
+	}
+	http.Error(*handler.Writer, "", http.StatusOK)
 }
 
 // viewWebhooks takes a request on the form
