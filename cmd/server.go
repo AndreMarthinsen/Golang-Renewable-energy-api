@@ -26,7 +26,7 @@ func main() {
 		go stubbing.RunSTUBServer(&wg, consts.StubPort, stubStop)
 	}
 
-	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew)
+	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew())
 	http.HandleFunc(consts.NotificationPath, handlers.HandlerNotification)
 	http.HandleFunc(consts.StatusPath, handlers.HandlerStatus)
 
