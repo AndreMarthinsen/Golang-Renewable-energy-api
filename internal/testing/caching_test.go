@@ -15,7 +15,7 @@ import (
 )
 
 func TestRunCacheWorker(t *testing.T) {
-	requests := make(chan caching.CacheRequest)
+	requests := make(chan caching.CacheRequest, 10)
 
 	runCacheTest := func(codes []string, expected caching.CacheResponse) func(*testing.T) {
 		return func(t *testing.T) {
@@ -26,6 +26,7 @@ func TestRunCacheWorker(t *testing.T) {
 				t.Error("Expected status ", expected.Status, ", got ", result.Status)
 			}
 			if len(result.Neighbours) != len(expected.Neighbours) {
+				log.Println(result.Neighbours, expected.Neighbours)
 				t.Error("Map lengths do not match.")
 			}
 		}
@@ -44,7 +45,7 @@ func TestRunCacheWorker(t *testing.T) {
 	}
 
 	config := caching.Config{
-		CachePushRate:     5.0,
+		CachePushRate:     5 * time.Second,
 		CacheTimeLimit:    30 * time.Minute,
 		DebugMode:         false,
 		DevelopmentMode:   true,
@@ -59,7 +60,6 @@ func TestRunCacheWorker(t *testing.T) {
 	wg := sync.WaitGroup{}
 	defer wg.Wait()
 
-	wg.Add(2)
 	go stubbing.RunSTUBServer(&wg, consts.StubPort)
 	go caching.RunCacheWorker(&config, requests, stop, done)
 
