@@ -12,6 +12,7 @@ import (
 	"log"
 )
 
+// NewFirestoreContext initializes a new context and a Firestore cLient in a Config struct
 func NewFirestoreContext(config *Config, configFilePath string) error {
 
 	config.FirestoreClient = new(firestore.Client)
@@ -35,7 +36,7 @@ func NewFirestoreContext(config *Config, configFilePath string) error {
 	return nil
 }
 
-// Close closes the client
+// Close closes the Firestore client
 func Close(config *Config) error {
 	err := config.FirestoreClient.Close()
 	if err != nil {
@@ -58,6 +59,7 @@ func AddDocument(config *Config, collection string, document interface{}) (strin
 
 // AddDocumentById stores a new document with specified id in a
 // Firestore collection.
+// Overwrites existing document if document with id already exists.
 func AddDocumentById(config *Config, collection string, id string, document interface{}) error {
 	_, err := config.FirestoreClient.Collection(collection).Doc(id).Set(*config.Ctx, document)
 	if err != nil {
@@ -67,7 +69,7 @@ func AddDocumentById(config *Config, collection string, id string, document inte
 	return nil
 }
 
-// DeleteDocument deletes data with a specific id from a collection.
+// DeleteDocument deletes document with a specific id from a collection.
 func DeleteDocument(config *Config, collection, id string) error {
 	_, err := config.FirestoreClient.Collection(collection).Doc(id).Delete(*config.Ctx)
 	if err != nil {
@@ -99,7 +101,7 @@ func ReadDocumentGeneral(config *Config, collection, id string, document interfa
 	return nil
 }
 
-// CountDocuments counts all docs in specified collection
+// CountDocuments counts all docs in specified collection.
 func CountDocuments(config *Config, collection string) (int, error) {
 	count := 0
 	iter := config.FirestoreClient.Collection(collection).Documents(*config.Ctx)
