@@ -1,11 +1,12 @@
 package testing
 
 import (
+	"Assignment2/caching"
 	"Assignment2/consts"
-	caching "Assignment2/firebase"
 	"Assignment2/internal/stubbing"
+	"Assignment2/util"
 	"context"
-	firebase "firebase.google.com/go"
+	"firebase.google.com/go"
 	"google.golang.org/api/option"
 	"log"
 	"net/http"
@@ -41,10 +42,10 @@ func TestRunCacheWorker(t *testing.T) {
 
 	client, err := app.Firestore(ctx)
 	if err != nil {
-		log.Fatal("Failed to set up firebase client")
+		log.Fatal("Failed to set up caching client")
 	}
 
-	config := caching.Config{
+	config := util.Config{
 		CachePushRate:     5 * time.Second,
 		CacheTimeLimit:    30 * time.Minute,
 		DebugMode:         false,

@@ -1,7 +1,8 @@
 package testing
 
 import (
-	"Assignment2/firebase"
+	"Assignment2/fsutils"
+	"Assignment2/util"
 	"fmt"
 	"reflect"
 	"testing"
@@ -22,9 +23,9 @@ const testCollection = "mess"
 
 // TestInitializeFirestore checks if initializing is successful
 func TestInitializeFirestore(t *testing.T) {
-	var config firebase.Config
-	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
-	defer firebase.Close(&config)
+	var config util.Config
+	err := fsutils.NewFirestoreContext(&config, serviceAccountPath)
+	defer fsutils.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
@@ -32,9 +33,9 @@ func TestInitializeFirestore(t *testing.T) {
 
 // TestAddDocument checks if document can be added to collection
 func TestAddDocument(t *testing.T) {
-	var config firebase.Config
-	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
-	defer firebase.Close(&config)
+	var config util.Config
+	err := fsutils.NewFirestoreContext(&config, serviceAccountPath)
+	defer fsutils.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
@@ -45,7 +46,7 @@ func TestAddDocument(t *testing.T) {
 		"third":  "third_value",
 	}
 
-	id, err := firebase.AddDocument(&config, testCollection, testData)
+	id, err := fsutils.AddDocument(&config, testCollection, testData)
 	if err != nil {
 		t.Error("could not create document")
 	}
@@ -56,9 +57,9 @@ func TestAddDocument(t *testing.T) {
 
 } // TestAddDocument checks if document can be added to collection
 func TestAddDocumentById(t *testing.T) {
-	var config firebase.Config
-	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
-	defer firebase.Close(&config)
+	var config util.Config
+	err := fsutils.NewFirestoreContext(&config, serviceAccountPath)
+	defer fsutils.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
@@ -71,7 +72,7 @@ func TestAddDocumentById(t *testing.T) {
 
 	fmt.Println("Trying to add: ", testData)
 	id := "myTestDoc"
-	err = firebase.AddDocumentById(&config, testCollection, id, testData)
+	err = fsutils.AddDocumentById(&config, testCollection, id, testData)
 	if err != nil {
 		t.Error("could not create document")
 	}
@@ -79,9 +80,9 @@ func TestAddDocumentById(t *testing.T) {
 
 // TestDeleteDocument creates a new document and then deletes it after a delay
 func TestDeleteDocument(t *testing.T) {
-	var config firebase.Config
-	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
-	defer firebase.Close(&config)
+	var config util.Config
+	err := fsutils.NewFirestoreContext(&config, serviceAccountPath)
+	defer fsutils.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
@@ -90,9 +91,9 @@ func TestDeleteDocument(t *testing.T) {
 		"aaa": 1,
 	}
 
-	newDoc, _ := firebase.AddDocument(&config, testCollection, testData)
+	newDoc, _ := fsutils.AddDocument(&config, testCollection, testData)
 
-	err = firebase.DeleteDocument(&config, testCollection, newDoc)
+	err = fsutils.DeleteDocument(&config, testCollection, newDoc)
 	if err != nil {
 		t.Error("could not delete document")
 	}
@@ -100,14 +101,14 @@ func TestDeleteDocument(t *testing.T) {
 
 // TestDeleteNonExistingDocument tries to delete a document that does not exist
 func TestDeleteNonExistingDocument(t *testing.T) {
-	var config firebase.Config
-	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
-	defer firebase.Close(&config)
+	var config util.Config
+	err := fsutils.NewFirestoreContext(&config, serviceAccountPath)
+	defer fsutils.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
 
-	err = firebase.DeleteDocument(&config, testCollection, "non-existingId")
+	err = fsutils.DeleteDocument(&config, testCollection, "non-existingId")
 	if err != nil {
 		t.Error("could not delete document")
 	}
@@ -116,9 +117,9 @@ func TestDeleteNonExistingDocument(t *testing.T) {
 
 // TestReadDocument reads document with known content
 func TestReadDocument(t *testing.T) {
-	var config firebase.Config
-	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
-	defer firebase.Close(&config)
+	var config util.Config
+	err := fsutils.NewFirestoreContext(&config, serviceAccountPath)
+	defer fsutils.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
@@ -128,12 +129,12 @@ func TestReadDocument(t *testing.T) {
 		"ccc": 3.0,
 	}
 
-	newDoc, err := firebase.AddDocument(&config, testCollection, testData)
+	newDoc, err := fsutils.AddDocument(&config, testCollection, testData)
 	if err != nil {
 		t.Error("unable to create new document")
 	}
 	// read back know document:
-	content, err := firebase.ReadDocument(&config, testCollection, newDoc)
+	content, err := fsutils.ReadDocument(&config, testCollection, newDoc)
 	if err != nil {
 		t.Error("unable to read document")
 	}
@@ -148,9 +149,9 @@ func TestReadDocument(t *testing.T) {
 // TestReadDocumentGeneral creates a new document from MockData struct and
 // then reads it back into a struct of the same type
 func TestReadDocumentGeneral(t *testing.T) {
-	var config firebase.Config
-	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
-	defer firebase.Close(&config)
+	var config util.Config
+	err := fsutils.NewFirestoreContext(&config, serviceAccountPath)
+	defer fsutils.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
@@ -163,12 +164,12 @@ func TestReadDocumentGeneral(t *testing.T) {
 
 	testReadData := MockData{}
 
-	newDoc, err := firebase.AddDocument(&config, testCollection, testData)
+	newDoc, err := fsutils.AddDocument(&config, testCollection, testData)
 	if err != nil {
 		t.Error("unable to create new document")
 	}
 	// read back known document:
-	err = firebase.ReadDocumentGeneral(&config, testCollection, newDoc, &testReadData)
+	err = fsutils.ReadDocumentGeneral(&config, testCollection, newDoc, &testReadData)
 	if err != nil {
 		t.Error("unable to read document")
 	}
@@ -183,14 +184,14 @@ func TestReadDocumentGeneral(t *testing.T) {
 
 // TestReadDocumentNonexisting tries to read a document with invalid id
 func TestReadDocumentNonexisting(t *testing.T) {
-	var config firebase.Config
-	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
-	defer firebase.Close(&config)
+	var config util.Config
+	err := fsutils.NewFirestoreContext(&config, serviceAccountPath)
+	defer fsutils.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
 	// try reading non-existing document:
-	_, err = firebase.ReadDocument(&config, testCollection, "invalid_name")
+	_, err = fsutils.ReadDocument(&config, testCollection, "invalid_name")
 
 	if err == nil {
 		t.Error("reading non-existing document returned no error")
@@ -200,9 +201,9 @@ func TestReadDocumentNonexisting(t *testing.T) {
 
 // TestCountDocuments
 func TestCountDocuments(t *testing.T) {
-	var config firebase.Config
-	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
-	defer firebase.Close(&config)
+	var config util.Config
+	err := fsutils.NewFirestoreContext(&config, serviceAccountPath)
+	defer fsutils.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
@@ -210,11 +211,11 @@ func TestCountDocuments(t *testing.T) {
 	newCollection := "test123"
 	var ids []string
 	for i := 0; i < 5; i++ {
-		id, _ := firebase.AddDocument(&config, newCollection, map[string]interface{}{"a": i + 1})
+		id, _ := fsutils.AddDocument(&config, newCollection, map[string]interface{}{"a": i + 1})
 		ids = append(ids, id)
 	}
 
-	count, err := firebase.CountDocuments(&config, newCollection)
+	count, err := fsutils.CountDocuments(&config, newCollection)
 	if err != nil {
 		t.Error("unable to count")
 	}
@@ -225,13 +226,13 @@ func TestCountDocuments(t *testing.T) {
 
 	// delete newly created docs:
 	for _, id := range ids {
-		err = firebase.DeleteDocument(&config, newCollection, id)
+		err = fsutils.DeleteDocument(&config, newCollection, id)
 		if err != nil {
 			t.Error("unable to delete document")
 		}
 	}
 	// count again; check if all are deleted:
-	count, err = firebase.CountDocuments(&config, newCollection)
+	count, err = fsutils.CountDocuments(&config, newCollection)
 	if err != nil {
 		t.Error("unable to count")
 	}
