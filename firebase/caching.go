@@ -41,7 +41,7 @@ type CacheEntry struct {
 
 // Config contains project config. TODO: Moves this to a more fitting package.
 type Config struct {
-	CachePushRate     float64
+	CachePushRate     time.Duration
 	CacheTimeLimit    time.Duration
 	DebugMode         bool
 	DevelopmentMode   bool
@@ -60,74 +60,86 @@ type CacheMiss struct {
 
 // RunCacheWorker runs a worker intended for the purpose of supplying handlers for country
 // neighbour data from in memory cache that is kept synced with external DB.
-func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struct{},
+//
+// The cache worker will run until the 'stop' channel is signaled on.
+// Stopping the worker, or closing the 'requests' channel, will cause the worker to attempt
+// doing a shut-down routine, synchronizing the local cache with the external DB before
+// signaling on 'done' to signify that it has completed the shutdown.
+func RunCacheWorker(cfg *Config, requests chan CacheRequest, stop <-chan struct{},
 	cleanupDone chan<- struct{}) {
 
 	if cfg.DebugMode {
 		log.Println("Cache worker: running")
 	}
-	// map from cca3 codes to CacheEntry structs with borders and timestamp.
-	localCache := make(map[string]CacheEntry, 0)
+
 	// slice with any cache misses that need handling
 	cacheMisses := make([]CacheMiss, 0)
 	client := http.Client{}
+	cacheUpdated := false
 
-	localCache, err := loadCacheFromDB(cfg, cfg.PrimaryCache)
-	if err != nil {
-		log.Println("Cache worker: failed to load primary cache")
-		log.Println("^ details: ", err)
-	}
-	if cfg.DebugMode {
-		log.Println("Cache worker: local cache loaded with", len(localCache), "entries")
-	}
-	localCache, err = purgeStaleEntries(cfg, "PurgeTest", localCache)
-	if err != nil {
-		log.Println("Cache worker: failed to purge old entries")
-		log.Println("^ details: ", err)
-	}
-
-	previousUpdate := time.Now()
+	// map from cca3 codes to CacheEntry structs with borders and timestamp.
+	localCache := localCacheInit(cfg)
 
 	// Main request-handling loop. Runs until a stop signal is received or request channel is closed.
 	for {
 		select {
-		case <-stop:
-			if err = createCacheInDB(cfg, "ShutDownTest", localCache); err != nil {
+		case <-time.After(time.Second * 5):
+			if cacheUpdated {
+				if err := updateCacheInDB(cfg, "UpdatedCache", localCache); err != nil {
+					log.Println("cache worker: failed to update cache in DB on periodic update")
+				}
+				cacheUpdated = false
+			}
+		case <-stop: // Signal received on stop channel, shutting down worker.
+			if err := updateCacheInDB(cfg, "ShutDownTest", localCache); err != nil {
 				log.Fatal("cache worker: failed to create DB on shutdown")
 			}
 			cleanupDone <- struct{}{}
 			return
-		case val, ok := <-requests: // TODO: Limiting handled requests before considering default case
-			if !ok {
+		case probe, ok := <-requests: // Either request has been received or channel closed
+			if !ok { // TODO: Limiting handled requests before considering default case
 				log.Println("Cache worker lost contact with request channel.\n" +
 					"Running cleanup routine and shutting down cache worker.")
 				cleanupDone <- struct{}{}
 				return
 			}
-			// CHECKING AGAINST IN MEMORY CACHE //////////////////////////////
-			response := CacheResponse{Status: http.StatusOK, Neighbours: map[string][]string{}}
-			misses := make([]string, 0)
-			for _, code := range val.CountryRequest {
-				cacheResult, ok := localCache[code]
-				if ok {
-					response.Neighbours[code] = cacheResult.Borders
-				} else {
-					misses = append(misses, code)
+			requests <- probe // value is put back into channel
+			notDone := true
+			for notDone {
+				select {
+				case val, _ := <-requests:
+					response := CacheResponse{Status: http.StatusOK, Neighbours: map[string][]string{}}
+					misses := make([]string, 0)
+					for _, code := range val.CountryRequest {
+						cacheResult, ok := localCache[code]
+						if ok {
+							response.Neighbours[code] = cacheResult.Borders
+						} else {
+							misses = append(misses, code)
+						}
+					}
+					if len(misses) == 0 {
+						if cfg.DebugMode {
+							log.Println("returning response")
+						}
+						val.ChannelRef <- response
+					} else { // Some misses, will be handled when default case occurs
+						val.CountryRequest = misses
+						cacheMisses = append(cacheMisses, CacheMiss{Request: val, Response: response})
+					}
+				default:
+					notDone = false
 				}
 			}
-			if len(misses) == 0 {
-				if cfg.DebugMode {
-					log.Println("returning response")
-				}
-				val.ChannelRef <- response
-			} else { // Some misses, will be handled when default case occurs
-				val.CountryRequest = misses
-				cacheMisses = append(cacheMisses, CacheMiss{Request: val, Response: response})
-			}
-		default: // SYNC OF DB, CHECKING THIRD PARTY API AGAINST MISSES /////////
 			if len(cacheMisses) != 0 {
-				updateLocalCache(cfg, &client, localCache, cacheMisses)
+				// Any cache misses are checked against the external api.
+				// Any valid results are added to the local cache.
+				temp := updateLocalCache(cfg, &client, &localCache, cacheMisses)
+				cacheUpdated = cacheUpdated || temp
+				// Iterates through the misses where each miss represents one Request
 				for _, miss := range cacheMisses {
+					// Iterates through the missed cca3 codes that were missed
+					// and updates the CacheResponse with any hits in updated cache.
 					for _, code := range miss.Request.CountryRequest {
 						if cacheResult, ok := localCache[code]; ok {
 							miss.Response.Neighbours[code] = cacheResult.Borders
@@ -135,23 +147,45 @@ func RunCacheWorker(cfg *Config, requests <-chan CacheRequest, stop <-chan struc
 					}
 					if len(miss.Response.Neighbours) == 0 {
 						miss.Response.Status = http.StatusNotFound
-					} // Cache updated and response sent to handler
+					}
+					// A final response sent to the handler that made the current
 					miss.Request.ChannelRef <- miss.Response
 				}
-				cacheMisses = make([]CacheMiss, 0) // resets list over misses
-			}
-			if time.Since(previousUpdate).Seconds() >= cfg.CachePushRate {
-				//TODO: Update external DB
-				previousUpdate = time.Now()
+				// resets cache misses
+				cacheMisses = make([]CacheMiss, 0)
 			}
 		}
 	}
 }
 
+// localCacheInit initializes the local cache from the external DB, backs the ache up,
+// and purges any outdated entries from the cache before returning it.
+func localCacheInit(cfg *Config) map[string]CacheEntry {
+	localCache, err := loadCacheFromDB(cfg, cfg.PrimaryCache)
+	if err != nil {
+		log.Println("cache worker: failed to load primary cache")
+		log.Println("^ details: ", err)
+	} else {
+		if err = createCacheInDB(cfg, cfg.PrimaryCache+".backup", localCache); err != nil {
+			log.Println("cache worker: failed to create backup of old cache")
+			log.Println("^ details: ", err)
+		}
+	}
+	if cfg.DebugMode {
+		log.Println("cache worker: loaded local cache with", len(localCache), "entries")
+	}
+	localCache, err = purgeStaleEntries(cfg, "PurgeTest", localCache)
+	if err != nil {
+		log.Println("cache worker: failed to purge old entries")
+		log.Println("^ details: ", err)
+	}
+	return localCache
+}
+
 // updateLocalCache updates the local cache by attempting to retrieve data matching
 // any registered misses. Requests are either made to internal stubbing if development is
 // set in config, 3d party API if false.
-func updateLocalCache(cfg *Config, client *http.Client, cache map[string]CacheEntry, misses []CacheMiss) {
+func updateLocalCache(cfg *Config, client *http.Client, cache *map[string]CacheEntry, misses []CacheMiss) bool {
 	joinedCountryCodes := getCodesStringFromMisses(misses)
 	var url string
 	if cfg.DevelopmentMode { // Uses internal stubbing service when in development mode
@@ -173,9 +207,11 @@ func updateLocalCache(cfg *Config, client *http.Client, cache map[string]CacheEn
 	if err = decoder.Decode(&returnedData); err == nil {
 		// Update of cache with any valid results
 		for _, data := range returnedData {
-			cache[data.Cca3] = data
+			(*cache)[data.Cca3] = data
 		}
+		return true
 	}
+	return false
 }
 
 // getCodesStringFromMisses collects all cca3 codes from the cache misses and
@@ -229,7 +265,7 @@ func createCacheInDB(cfg *Config, cacheID string, cache map[string]CacheEntry) e
 // TODO: Not currently functional
 func updateCacheInDB(cfg *Config, cacheID string, newEntries map[string]CacheEntry) error {
 	ref := cfg.FirestoreClient.Collection(cfg.CachingCollection).Doc(cacheID)
-	if _, err := ref.Set(*cfg.Ctx, newEntries, firestore.MergeAll); err != nil {
+	if _, err := ref.Set(*cfg.Ctx, &newEntries); err != nil {
 		return err
 	}
 	return nil

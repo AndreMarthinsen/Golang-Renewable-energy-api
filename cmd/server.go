@@ -44,7 +44,7 @@ func main() {
 	}
 
 	config := caching.Config{
-		CachePushRate:     5.0,
+		CachePushRate:     5 * time.Second,
 		CacheTimeLimit:    2 * time.Hour,
 		DebugMode:         true,
 		DevelopmentMode:   true,
