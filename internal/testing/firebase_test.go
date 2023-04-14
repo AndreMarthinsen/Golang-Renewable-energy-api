@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"time"
 	"unicode/utf8"
 )
 
@@ -23,8 +22,9 @@ const testCollection = "mess"
 
 // TestInitializeFirestore checks if initializing is successful
 func TestInitializeFirestore(t *testing.T) {
-	fs, err := firebase.NewFirestoreContext(serviceAccountPath)
-	defer fs.Close()
+	var config firebase.Config
+	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
+	defer firebase.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
@@ -32,8 +32,9 @@ func TestInitializeFirestore(t *testing.T) {
 
 // TestAddDocument checks if document can be added to collection
 func TestAddDocument(t *testing.T) {
-	fs, err := firebase.NewFirestoreContext(serviceAccountPath)
-	defer fs.Close()
+	var config firebase.Config
+	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
+	defer firebase.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
@@ -44,7 +45,7 @@ func TestAddDocument(t *testing.T) {
 		"third":  "third_value",
 	}
 
-	id, err := fs.AddDocument(testCollection, testData)
+	id, err := firebase.AddDocument(&config, testCollection, testData)
 	if err != nil {
 		t.Error("could not create document")
 	}
@@ -55,8 +56,9 @@ func TestAddDocument(t *testing.T) {
 
 } // TestAddDocument checks if document can be added to collection
 func TestAddDocumentById(t *testing.T) {
-	fs, err := firebase.NewFirestoreContext(serviceAccountPath)
-	defer fs.Close()
+	var config firebase.Config
+	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
+	defer firebase.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
@@ -69,7 +71,7 @@ func TestAddDocumentById(t *testing.T) {
 
 	fmt.Println("Trying to add: ", testData)
 	id := "myTestDoc"
-	err = fs.AddDocumentById(testCollection, id, testData)
+	err = firebase.AddDocumentById(&config, testCollection, id, testData)
 	if err != nil {
 		t.Error("could not create document")
 	}
@@ -77,8 +79,9 @@ func TestAddDocumentById(t *testing.T) {
 
 // TestDeleteDocument creates a new document and then deletes it after a delay
 func TestDeleteDocument(t *testing.T) {
-	fs, err := firebase.NewFirestoreContext(serviceAccountPath)
-	defer fs.Close()
+	var config firebase.Config
+	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
+	defer firebase.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
@@ -87,12 +90,9 @@ func TestDeleteDocument(t *testing.T) {
 		"aaa": 1,
 	}
 
-	newDoc, _ := fs.AddDocument(testCollection, testData)
-	// TODO remove pause?
-	// small pause to see the doc appear in firebase
-	time.Sleep(3 * time.Second)
+	newDoc, _ := firebase.AddDocument(&config, testCollection, testData)
 
-	err = fs.DeleteDocument(testCollection, newDoc)
+	err = firebase.DeleteDocument(&config, testCollection, newDoc)
 	if err != nil {
 		t.Error("could not delete document")
 	}
@@ -100,38 +100,40 @@ func TestDeleteDocument(t *testing.T) {
 
 // TestDeleteNonExistingDocument tries to delete a document that does not exist
 func TestDeleteNonExistingDocument(t *testing.T) {
-	fs, err := firebase.NewFirestoreContext(serviceAccountPath)
-	defer fs.Close()
+	var config firebase.Config
+	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
+	defer firebase.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
 
-	err = fs.DeleteDocument(testCollection, "non-existingId")
+	err = firebase.DeleteDocument(&config, testCollection, "non-existingId")
 	if err != nil {
 		t.Error("could not delete document")
 	}
+
 }
 
 // TestReadDocument reads document with known content
 func TestReadDocument(t *testing.T) {
-	fs, err := firebase.NewFirestoreContext(serviceAccountPath)
+	var config firebase.Config
+	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
+	defer firebase.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
-	defer fs.Close()
-
 	testData := map[string]interface{}{
 		"a":   1,
 		"bb":  "two",
 		"ccc": 3.0,
 	}
 
-	newDoc, err := fs.AddDocument(testCollection, testData)
+	newDoc, err := firebase.AddDocument(&config, testCollection, testData)
 	if err != nil {
 		t.Error("unable to create new document")
 	}
-
-	content, err := fs.ReadDocument(testCollection, newDoc)
+	// read back know document:
+	content, err := firebase.ReadDocument(&config, testCollection, newDoc)
 	if err != nil {
 		t.Error("unable to read document")
 	}
@@ -146,11 +148,12 @@ func TestReadDocument(t *testing.T) {
 // TestReadDocumentGeneral creates a new document from MockData struct and
 // then reads it back into a struct of the same type
 func TestReadDocumentGeneral(t *testing.T) {
-	fs, err := firebase.NewFirestoreContext(serviceAccountPath)
+	var config firebase.Config
+	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
+	defer firebase.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
-	defer fs.Close()
 
 	testData := MockData{
 		First:  "testing",
@@ -160,15 +163,16 @@ func TestReadDocumentGeneral(t *testing.T) {
 
 	testReadData := MockData{}
 
-	newDoc, err := fs.AddDocument(testCollection, testData)
+	newDoc, err := firebase.AddDocument(&config, testCollection, testData)
 	if err != nil {
 		t.Error("unable to create new document")
 	}
-
-	err = fs.ReadDocumentGeneral(testCollection, newDoc, &testReadData)
+	// read back known document:
+	err = firebase.ReadDocumentGeneral(&config, testCollection, newDoc, &testReadData)
 	if err != nil {
 		t.Error("unable to read document")
 	}
+
 	fmt.Println("data: ", testReadData)
 	if !reflect.DeepEqual(testData, testReadData) {
 		fmt.Println("added data: ", testData)
@@ -177,10 +181,28 @@ func TestReadDocumentGeneral(t *testing.T) {
 	}
 }
 
+// TestReadDocumentNonexisting tries to read a document with invalid id
+func TestReadDocumentNonexisting(t *testing.T) {
+	var config firebase.Config
+	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
+	defer firebase.Close(&config)
+	if err != nil {
+		t.Error("could not initialize")
+	}
+	// read back known document:
+	_, err = firebase.ReadDocument(&config, testCollection, "invalid_name")
+
+	if err != nil {
+		t.Error("unable to read document")
+	}
+
+}
+
 // TestCountDocuments
 func TestCountDocuments(t *testing.T) {
-	fs, err := firebase.NewFirestoreContext(serviceAccountPath)
-	defer fs.Close()
+	var config firebase.Config
+	err := firebase.NewFirestoreContext(&config, serviceAccountPath)
+	defer firebase.Close(&config)
 	if err != nil {
 		t.Error("could not initialize")
 	}
@@ -188,11 +210,11 @@ func TestCountDocuments(t *testing.T) {
 	newCollection := "test123"
 	var ids []string
 	for i := 0; i < 5; i++ {
-		id, _ := fs.AddDocument(newCollection, map[string]interface{}{"a": i + 1})
+		id, _ := firebase.AddDocument(&config, newCollection, map[string]interface{}{"a": i + 1})
 		ids = append(ids, id)
 	}
 
-	count, err := fs.CountDocuments(newCollection)
+	count, err := firebase.CountDocuments(&config, newCollection)
 	if err != nil {
 		t.Error("unable to count")
 	}
@@ -200,17 +222,16 @@ func TestCountDocuments(t *testing.T) {
 	if count != 5 {
 		t.Error("wrong number of docs")
 	}
-	// TODO remove pause
-	time.Sleep(10 * time.Second)
+
 	// delete newly created docs:
 	for _, id := range ids {
-		err = fs.DeleteDocument(newCollection, id)
+		err = firebase.DeleteDocument(&config, newCollection, id)
 		if err != nil {
 			t.Error("unable to delete")
 		}
 	}
-
-	count, err = fs.CountDocuments(newCollection)
+	// count again; check if all are deleted:
+	count, err = firebase.CountDocuments(&config, newCollection)
 	if err != nil {
 		t.Error("unable to count")
 	}
