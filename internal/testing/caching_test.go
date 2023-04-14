@@ -97,5 +97,6 @@ func TestRunCacheWorker(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, runCacheTest(tt.queries, tt.expected))
 	}
+	time.Sleep(config.CachePushRate * 2)
 
 }

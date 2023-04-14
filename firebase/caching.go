@@ -12,7 +12,6 @@ import (
 )
 
 // RequestStatus represents a http status code
-// TODO: Any point to this?
 type RequestStatus int16
 
 // CacheResponse maps requested codes to resulting neighbours
@@ -85,13 +84,13 @@ func RunCacheWorker(cfg *Config, requests chan CacheRequest, stop <-chan struct{
 		select {
 		case <-time.After(time.Second * 5):
 			if cacheUpdated {
-				if err := updateCacheInDB(cfg, "UpdatedCache", localCache); err != nil {
+				if err := updateCacheInDB(cfg, cfg.PrimaryCache, localCache); err != nil {
 					log.Println("cache worker: failed to update cache in DB on periodic update")
 				}
 				cacheUpdated = false
 			}
 		case <-stop: // Signal received on stop channel, shutting down worker.
-			if err := updateCacheInDB(cfg, "ShutDownTest", localCache); err != nil {
+			if err := updateCacheInDB(cfg, cfg.PrimaryCache, localCache); err != nil {
 				log.Fatal("cache worker: failed to create DB on shutdown")
 			}
 			cleanupDone <- struct{}{}
@@ -134,8 +133,7 @@ func RunCacheWorker(cfg *Config, requests chan CacheRequest, stop <-chan struct{
 			if len(cacheMisses) != 0 {
 				// Any cache misses are checked against the external api.
 				// Any valid results are added to the local cache.
-				temp := updateLocalCache(cfg, &client, &localCache, cacheMisses)
-				cacheUpdated = cacheUpdated || temp
+				cacheUpdated = updateLocalCache(cfg, &client, &localCache, cacheMisses) || cacheUpdated
 				// Iterates through the misses where each miss represents one Request
 				for _, miss := range cacheMisses {
 					// Iterates through the missed cca3 codes that were missed
@@ -165,7 +163,7 @@ func localCacheInit(cfg *Config) map[string]CacheEntry {
 	if err != nil {
 		log.Println("cache worker: failed to load primary cache")
 		log.Println("^ details: ", err)
-	} else {
+	} else { // overwrites old backup file
 		if err = createCacheInDB(cfg, cfg.PrimaryCache+".backup", localCache); err != nil {
 			log.Println("cache worker: failed to create backup of old cache")
 			log.Println("^ details: ", err)
@@ -174,7 +172,7 @@ func localCacheInit(cfg *Config) map[string]CacheEntry {
 	if cfg.DebugMode {
 		log.Println("cache worker: loaded local cache with", len(localCache), "entries")
 	}
-	localCache, err = purgeStaleEntries(cfg, "PurgeTest", localCache)
+	localCache, err = purgeStaleEntries(cfg, cfg.PrimaryCache, localCache)
 	if err != nil {
 		log.Println("cache worker: failed to purge old entries")
 		log.Println("^ details: ", err)
@@ -207,6 +205,7 @@ func updateLocalCache(cfg *Config, client *http.Client, cache *map[string]CacheE
 	if err = decoder.Decode(&returnedData); err == nil {
 		// Update of cache with any valid results
 		for _, data := range returnedData {
+			data.LastUpdated = time.Now()
 			(*cache)[data.Cca3] = data
 		}
 		return true
