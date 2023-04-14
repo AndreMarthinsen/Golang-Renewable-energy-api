@@ -53,6 +53,7 @@ func main() {
 		FirestoreClient:   client,
 		CachingCollection: "Caches",
 		PrimaryCache:      "TestData",
+		WebhookCollection: "Webhooks",
 	}
 
 	requestChannel := make(chan caching.CacheRequest)
@@ -65,9 +66,10 @@ func main() {
 		stopSignal <- struct{}{}
 		<-doneSignal
 	}()
+	notificationHandler := handlers.HandlerNotification(&config)
 
 	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew)
-	http.HandleFunc(consts.NotificationPath, handlers.HandlerNotification)
+	http.HandleFunc(consts.NotificationPath, notificationHandler)
 	http.HandleFunc(consts.StatusPath, handlers.HandlerStatus)
 
 	log.Println("Listening on port " + port)

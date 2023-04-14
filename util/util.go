@@ -15,16 +15,17 @@ import (
 	"time"
 )
 
-// Config contains project config. TODO: Moves this to a more fitting package.
+// Config contains project config.
 type Config struct {
-	CachePushRate     time.Duration
-	CacheTimeLimit    time.Duration
-	DebugMode         bool
-	DevelopmentMode   bool
+	CachePushRate     time.Duration // Cache is pushed to external DB with CachePushRate as its interval
+	CacheTimeLimit    time.Duration // Cache entries older than CacheTimeLimit are purged upon loading
+	DebugMode         bool          // toggles any extra debug features such as extra logging of events
+	DevelopmentMode   bool          // Sets the service to use stubbing of external APIs
 	Ctx               *context.Context
 	FirestoreClient   *firestore.Client
 	CachingCollection string
 	PrimaryCache      string
+	WebhookCollection string
 }
 
 // HandlerContext is a container for the name, writer and client object associated with
