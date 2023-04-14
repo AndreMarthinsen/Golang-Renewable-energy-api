@@ -28,7 +28,10 @@ func RunCacheWorker(cfg *util.Config, requests chan CacheRequest, stop <-chan st
 	cacheUpdated := false
 
 	// map from cca3 codes to CacheEntry structs with borders and timestamp.
-	localCache := localCacheInit(cfg)
+	localCache, err := localCacheInit(cfg)
+	if err != nil {
+		log.Println(err)
+	}
 
 	// Main request-handling loop. Runs until a stop signal is received or request channel is closed.
 	for {
@@ -46,7 +49,7 @@ func RunCacheWorker(cfg *util.Config, requests chan CacheRequest, stop <-chan st
 			// Writes to primary cache in db before shutting down
 			err := fsutils.AddDocumentById(cfg, cfg.CachingCollection, cfg.PrimaryCache, &localCache)
 			if err != nil {
-				log.Fatal("cache worker: failed to create DB on shutdown")
+				log.Println("cache worker: failed to create DB on shutdown")
 			}
 			cleanupDone <- struct{}{}
 			return
@@ -54,6 +57,10 @@ func RunCacheWorker(cfg *util.Config, requests chan CacheRequest, stop <-chan st
 			if !ok {
 				log.Println("Cache worker lost contact with request channel.\n" +
 					"Running cleanup routine and shutting down cache worker.")
+				err := fsutils.AddDocumentById(cfg, cfg.CachingCollection, cfg.PrimaryCache, &localCache)
+				if err != nil {
+					log.Println("cache worker: failed to create DB on shutdown")
+				}
 				cleanupDone <- struct{}{}
 				return
 			}

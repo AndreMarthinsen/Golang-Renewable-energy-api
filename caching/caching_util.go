@@ -6,6 +6,7 @@ import (
 	"Assignment2/util"
 	"cloud.google.com/go/firestore"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -14,25 +15,24 @@ import (
 
 // localCacheInit initializes the local cache from the external DB, backs the ache up,
 // and purges any outdated entries from the cache before returning it.
-func localCacheInit(cfg *util.Config) map[string]CacheEntry {
+//
+// Failing to load the cache from the DB results in an empty map being returned.
+func localCacheInit(cfg *util.Config) (map[string]CacheEntry, error) {
 	localCache, err := loadCacheFromDB(cfg, cfg.PrimaryCache)
 	if err != nil {
-		log.Println("cache worker: failed to load primary cache")
-		log.Println("^ details: ", err)
+		localCache = make(map[string]CacheEntry, 0)
+		return localCache, errors.New("cache worker: failed to load primary cache: " + err.Error())
 	} else { // overwrites old backup file
 		err = fsutils.AddDocumentById(cfg, cfg.CachingCollection, cfg.PrimaryCache+".backup", &localCache)
 		if err != nil {
-			log.Println("cache worker: failed to create backup of old cache")
-			log.Println("^ details: ", err)
+			return localCache, errors.New("cache worker: failed to create backup of old cache: " + err.Error())
 		}
 	}
-	util.LogOnDebug(cfg, "cache worker: loaded local cache with", len(localCache), "entries")
 	localCache, err = purgeStaleEntries(cfg, cfg.PrimaryCache, localCache)
 	if err != nil {
-		log.Println("cache worker: failed to purge old entries")
-		log.Println("^ details: ", err)
+		return nil, errors.New("cache worker: failed to purge old entries: " + err.Error())
 	}
-	return localCache
+	return localCache, nil
 }
 
 // updateLocalCache updates the local cache by attempting to retrieve data matching
@@ -110,9 +110,5 @@ func purgeStaleEntries(cfg *util.Config, cacheID string, oldCache map[string]Cac
 	}
 	ref := cfg.FirestoreClient.Collection(cfg.CachingCollection).Doc(cacheID)
 	_, err := ref.Set(*cfg.Ctx, newCache, firestore.MergeAll)
-	if err != nil {
-		return nil, err
-	}
-	oldCache = nil
-	return newCache, nil
+	return newCache, err
 }
