@@ -5,8 +5,10 @@ import (
 	"Assignment2/fsutils"
 	"Assignment2/util"
 	"encoding/json"
+	"google.golang.org/api/iterator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"log"
 	"net/http"
 	"time"
 )
@@ -138,8 +140,52 @@ func deleteWebhook(handler *util.HandlerContext, cfg *util.Config, r *http.Reque
 //
 // ]
 // in the case of a provided ID, only a single result will be shown.
-func viewWebhooks(context *util.HandlerContext, cfg *util.Config, r *http.Request) {
-
+func viewWebhooks(handler *util.HandlerContext, cfg *util.Config, r *http.Request) {
+	segments := util.FragmentsFromPath(r.URL.Path, consts.NotificationPath)
+	if len(segments) == 1 {
+		id := segments[0]
+		webhookEntry := Webhook{}
+		err := fsutils.ReadDocumentGeneral(cfg, cfg.WebhookCollection, id, &webhookEntry)
+		if err != nil {
+			if status.Code(err) == codes.NotFound {
+				http.Error(*handler.Writer,
+					"",
+					http.StatusNotFound, // Document doesn't exist.
+				)
+			} else {
+				http.Error(*handler.Writer,
+					"Something went wrong...",
+					http.StatusInternalServerError, // Firestore interaction failed.
+				)
+			}
+			return
+		}
+		//TODO: Should it return an array for both branches for consistency?
+		util.EncodeAndWriteResponse(handler.Writer, webhookEntry)
+		return
+	} else {
+		iter := cfg.FirestoreClient.Collection(cfg.WebhookCollection).Documents(*cfg.Ctx)
+		entries := make([]Webhook, 0)
+		for {
+			doc, err := iter.Next()
+			if err == iterator.Done {
+				break
+			}
+			webhookEntry := Webhook{}
+			if err = doc.DataTo(&webhookEntry); err != nil {
+				log.Printf("Failed to unmarshal document %v: %v", doc.Ref.ID, err)
+				continue
+			}
+			entries = append(entries, webhookEntry)
+		}
+		if len(entries) == 0 {
+			http.Error(*handler.Writer,
+				"",
+				http.StatusNotFound, // Error indicates a failure to communicate
+			) // with DB. Document not existing returns no error.
+		}
+		util.EncodeAndWriteResponse(handler.Writer, entries)
+	}
 }
 
 // webhookTrigger triggers whenever x amount of invocations on
