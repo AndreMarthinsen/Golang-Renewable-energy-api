@@ -77,7 +77,8 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, code string) {
 	// if the emtpy string is passed, all countries will be returned
 	stats = 
 	append(stats, readStatsFromFile(dataSetPath, lastYearString, strings.ToUpper(code))...)
-	//
+	// if no match is found for passed code, or if results are otherwise failed to be found
+	// returns error
 	if len(stats) == 0 {
 	 	http.Error(w, "Not found", http.StatusNotFound)
 	 }
@@ -119,6 +120,8 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, code string) {
 			
 		}
 	}
+	// if no match is found for passed code, or if results are otherwise failed to be found
+	// returns error
 	if len(stats) == 0 {
 		http.Error(w, "Not", http.StatusNotFound)
 	}
@@ -140,7 +143,7 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, code string) {
 			stats[i].Year = ""
 		}
 	} else {
-		// set start and end to match 
+		// set start and end to match first and last year in dataset
 		start := firstYear
 		end := lastYear
 		// The following checks if there is a URL query, if its correctly formatted, and if
@@ -238,8 +241,10 @@ func readPercentageFromFile(p string, code string) float64 {
 	return percentage
 }
 
-func readCSV(p string) *csv.Reader {
-	f, err := os.Open(p)
+// readCSV attempts to open a CSV file and return a CSV-reader for that file
+// if unsuccessful, the program crashes
+func readCSV(path string) *csv.Reader {
+	f, err := os.Open(path)
 	if err != nil {
 		log.Fatalf("File error: %v\n", err)
 	}
