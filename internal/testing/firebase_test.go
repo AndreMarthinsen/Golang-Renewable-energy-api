@@ -189,11 +189,11 @@ func TestReadDocumentNonexisting(t *testing.T) {
 	if err != nil {
 		t.Error("could not initialize")
 	}
-	// read back known document:
+	// try reading non-existing document:
 	_, err = firebase.ReadDocument(&config, testCollection, "invalid_name")
 
-	if err != nil {
-		t.Error("unable to read document")
+	if err == nil {
+		t.Error("reading non-existing document returned no error")
 	}
 
 }
@@ -218,7 +218,7 @@ func TestCountDocuments(t *testing.T) {
 	if err != nil {
 		t.Error("unable to count")
 	}
-	fmt.Println("Number of docs: ", count)
+
 	if count != 5 {
 		t.Error("wrong number of docs")
 	}
@@ -227,7 +227,7 @@ func TestCountDocuments(t *testing.T) {
 	for _, id := range ids {
 		err = firebase.DeleteDocument(&config, newCollection, id)
 		if err != nil {
-			t.Error("unable to delete")
+			t.Error("unable to delete document")
 		}
 	}
 	// count again; check if all are deleted:
