@@ -1,0 +1,21 @@
+stages:
+  - before_script
+  - build
+  - test
+
+image: golang:latest
+
+before_script:
+  - echo "$FIREBASE_TOKEN" > sha.json
+  - echo "$FIREBASE_TOKEN" > /internal/testing/sha.json
+
+build:
+  stage: build
+  script:
+    - go build -o app cmd/server.go
+
+test:
+  stage: test
+  script:
+    - echo "Running tests..."
+    - go test ./...
