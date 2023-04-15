@@ -4,6 +4,8 @@
 package util
 
 import (
+	"cloud.google.com/go/firestore"
+	"context"
 	"encoding/json"
 	"io"
 	"log"
@@ -11,7 +13,21 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 )
+
+// Config contains project config.
+type Config struct {
+	CachePushRate     time.Duration // Cache is pushed to external DB with CachePushRate as its interval
+	CacheTimeLimit    time.Duration // Cache entries older than CacheTimeLimit are purged upon loading
+	DebugMode         bool          // toggles any extra debug features such as extra logging of events
+	DevelopmentMode   bool          // Sets the service to use stubbing of external APIs
+	Ctx               *context.Context
+	FirestoreClient   *firestore.Client
+	CachingCollection string
+	PrimaryCache      string
+	WebhookCollection string
+}
 
 // HandlerContext is a container for the name, writer and client object associated with
 // a handler body.
@@ -97,14 +113,9 @@ func HandleOutgoing(handler *HandlerContext, method string, URL string, reader i
 	return "", nil
 }
 
-// parseFile parses a file specified by filename
-//
-// On failure: Calls log.Fatal detailing the error.
-// On success: Returns the read file as a byte slice.
-// func ParseFile(filePath string) []byte {
-// 	file, e := os.ReadFile(filePath)
-// 	if e != nil {
-// 		log.Fatalf("File error: %v\n", e)
-// 	}
-// 	return file
-// }
+// LogOnDebug logs all argument items if Config.DebugMode == true
+func LogOnDebug(cfg *Config, msg ...any) {
+	if cfg.DebugMode {
+		log.Println("dbg:", msg)
+	}
+}
