@@ -57,7 +57,7 @@ func main() {
 		go stubbing.RunSTUBServer(&config, &wg, consts.StubPort, stubStop)
 	}
 
-	requestChannel := make(chan caching.CacheRequest)
+	requestChannel := make(chan caching.CacheRequest, 10)
 	stopSignal := make(chan struct{})
 	doneSignal := make(chan struct{})
 

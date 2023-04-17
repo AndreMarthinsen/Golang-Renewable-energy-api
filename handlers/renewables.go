@@ -1,9 +1,9 @@
 package handlers
 
 import (
+	"Assignment2/caching"
 	"Assignment2/consts"
 	"Assignment2/util"
-	"Assignment2/caching"
 	"encoding/csv"
 	//"fmt"
 	"io"
@@ -65,9 +65,9 @@ func HandlerRenew(request chan caching.CacheRequest) func(http.ResponseWriter, *
 			// checks if path contains /current/ or /history/, if not error message
 			switch path[0] {
 			case currentPath:
-				handlerCurrent(w, r, path[1], request)
+				handlerCurrent(w, r, strings.ToUpper(path[1]), request)
 			case historyPath:
-				handlerHistorical(w, r, path[1])
+				handlerHistorical(w, r, strings.ToUpper(path[1]))
 			default:
 				http.Error(w, "Not found, only /current/ and /history/ supported", http.StatusNotFound)
 				return
@@ -86,7 +86,7 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, code string, request
 	// Tries to find countries matching code in dataset
 	// if the emtpy string is passed, all countries will be returned
 	stats =
-		append(stats, readStatsFromFile(dataSetPath, lastYearString, strings.ToUpper(code))...)
+		append(stats, readStatsFromFile(dataSetPath, lastYearString, code)...)
 	// if no match is found for passed code, or if results are otherwise failed to be found
 	// returns error
 	if len(stats) == 0 {
@@ -104,7 +104,10 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, code string, request
 			ret := make(chan caching.CacheResponse)
 			request <- caching.CacheRequest{ChannelRef: ret, CountryRequest: []string{code}}
 			result := <-ret
-			log.Println(result)
+			log.Println(result.Neighbours[code])
+			for _, val := range result.Neighbours[code] {
+				stats = append(stats, readStatsFromFile(dataSetPath, lastYearString, val)...)
+			}
 			// for _, val := range result.Neighbours {
 			// 	stats = append(stats, readStatsFromFile(dataSetPath, lastYearString, val[])...)
 			// }
@@ -153,7 +156,7 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, code string) {
 	var stats []RenewableStatistics
 	// if no code is provided, a list of every country's average renewable percentage is returned
 	if code == "" {
-		stats = append(stats, readStatsFromFile(dataSetPath, lastYearString, strings.ToUpper(code))...)
+		stats = append(stats, readStatsFromFile(dataSetPath, lastYearString, code)...)
 		for i, val := range stats {
 			tmp := readPercentageFromFile(dataSetPath, val.Isocode)
 			tmp = tmp / yearSpan
@@ -192,7 +195,7 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, code string) {
 		// Adds yearly percentages for span from start to end
 		// if not set by user, it will be from the first to the last year in the dataset
 		for i := start; i <= end && i <= lastYear; i++ {
-			stats = append(stats, readStatsFromFile(dataSetPath, strconv.Itoa(i), strings.ToUpper(code))...)
+			stats = append(stats, readStatsFromFile(dataSetPath, strconv.Itoa(i), code)...)
 		}
 	}
 	if len(stats) == 0 {
