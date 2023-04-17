@@ -23,12 +23,6 @@ type RenewableStatistics struct {
 	Percentage string `json:"percentage"`
 }
 
-// contains a country's neighbouring countries, used in decoding response
-// from restcountries/stubbing
-type country struct {
-	Neighbours []string `json:"borders"`
-}
-
 // Dataset values TODO: Write csv.parsing function that can initialize
 const lastYearString = "2021"
 const lastYear = 2021
@@ -39,13 +33,6 @@ const yearSpan = lastYear - firstYear
 const currentPath = "current"
 const historyPath = "history"
 const dataSetPath = "./internal/assets/renewable-share-energy.csv"
-
-// External - paths
-const restCountries = "http://129.241.150.113:8080/"
-
-// const stubCodeAffix = "?codes="
-const countriesCode = "?codes="
-const bordersAffix = "&fields=borders"
 
 // HandlerRenew Handler for the renewables endpoint: this checks if the request is GET, and calls the correct function
 // for current renewable percentage or historical renewable percentage
@@ -84,7 +71,7 @@ func HandlerRenew(request chan caching.CacheRequest) func(http.ResponseWriter, *
 func handlerCurrent(w http.ResponseWriter, r *http.Request, code string, request chan caching.CacheRequest) {
 	var stats []RenewableStatistics
 	// Tries to find countries matching code in dataset
-	// if the emtpy string is passed, all countries will be returned
+	// if the empty string is passed, all countries will be returned
 	stats =
 		append(stats, readStatsFromFile(dataSetPath, lastYearString, code)...)
 	// if no match is found for passed code, or if results are otherwise failed to be found
@@ -101,12 +88,15 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, code string, request
 			http.Error(w, "Bad request, neighbours must equal true or false", http.StatusBadRequest)
 		}
 		if neighboursTrue {
+			// sends a request to the cache worker
 			ret := make(chan caching.CacheResponse)
 			request <- caching.CacheRequest{ChannelRef: ret, CountryRequest: []string{code}}
 			result := <-ret
-			log.Println(result.Neighbours[code])
-			for _, val := range result.Neighbours[code] {
-				stats = append(stats, readStatsFromFile(dataSetPath, lastYearString, val)...)
+			// if the request doesn't return not found, it will find those neighbours
+			if result.Status != 404 {
+				for _, val := range result.Neighbours[code] {
+					stats = append(stats, readStatsFromFile(dataSetPath, lastYearString, val)...)
+				}
 			}
 			// for _, val := range result.Neighbours {
 			// 	stats = append(stats, readStatsFromFile(dataSetPath, lastYearString, val[])...)
@@ -229,7 +219,7 @@ func readStatsFromFile(p string, year string, code string) []RenewableStatistics
 					statistics = append(statistics, RenewableStatistics{record[0], record[1], record[2], record[3]})
 				}
 			} else {
-				// if an emtpy string is passed as code, all lines with cc3a codes (i.e. only countries, not Africa)
+				// if an empty string is passed as code, all lines with cc3a codes (i.e. only countries, not Africa)
 				// will be encapsulated and appended
 				if record[1] != "" {
 					statistics = append(statistics, RenewableStatistics{record[0], record[1], record[2], record[3]})
