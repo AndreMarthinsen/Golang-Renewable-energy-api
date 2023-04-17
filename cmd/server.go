@@ -70,7 +70,7 @@ func main() {
 	notificationHandler := handlers.HandlerNotification(&config)
 	statusHandler := handlers.HandlerStatus(&config)
 
-	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew())
+	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(requestChannel))
 	http.HandleFunc(consts.NotificationPath, notificationHandler)
 	http.HandleFunc(consts.StatusPath, statusHandler)
 
