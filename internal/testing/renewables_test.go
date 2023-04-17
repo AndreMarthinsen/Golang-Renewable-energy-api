@@ -3,6 +3,7 @@ package testing
 import (
 	"Assignment2/consts"
 	"Assignment2/handlers"
+	"Assignment2/caching"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,8 +17,9 @@ const currentPath = consts.RenewablesPath + "current/"
 // const historyPath = consts.RenewablesPath + "history/"
 // TestCurrentRenewables tests the renewables/current/ endpoint
 func TestCurrentRenewables(t *testing.T) {
+	var requestChannel = make(chan caching.CacheRequest)
 	// Sets handler to the renewables handler
-	handler := handlers.HandlerRenew()
+	handler := handlers.HandlerRenew(requestChannel)
 
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	// URL under which server is instantiated

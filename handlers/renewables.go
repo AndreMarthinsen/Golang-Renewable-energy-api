@@ -3,15 +3,16 @@ package handlers
 import (
 	"Assignment2/consts"
 	"Assignment2/util"
+	"Assignment2/caching"
 	"encoding/csv"
-	"fmt"
+	//"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
-	"time"
+	//"time"
 )
 
 // RenewableStatistics struct that encapsulates information that will be returned for a successful request
@@ -48,7 +49,7 @@ const bordersAffix = "&fields=borders"
 
 // HandlerRenew Handler for the renewables endpoint: this checks if the request is GET, and calls the correct function
 // for current renewable percentage or historical renewable percentage
-func HandlerRenew() func(http.ResponseWriter, *http.Request) {
+func HandlerRenew(request chan caching.CacheRequest) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method { // switch for easy expansion
 		case http.MethodGet:
@@ -64,7 +65,7 @@ func HandlerRenew() func(http.ResponseWriter, *http.Request) {
 			// checks if path contains /current/ or /history/, if not error message
 			switch path[0] {
 			case currentPath:
-				handlerCurrent(w, r, path[1])
+				handlerCurrent(w, r, path[1], request)
 			case historyPath:
 				handlerHistorical(w, r, path[1])
 			default:
@@ -80,7 +81,7 @@ func HandlerRenew() func(http.ResponseWriter, *http.Request) {
 
 // handlerCurrent handles requests for renewable energy percentage for the current year in one country,
 // with possibility for returning the same information for that country's neighbours
-func handlerCurrent(w http.ResponseWriter, r *http.Request, code string) {
+func handlerCurrent(w http.ResponseWriter, r *http.Request, code string, request chan caching.CacheRequest) {
 	var stats []RenewableStatistics
 	// Tries to find countries matching code in dataset
 	// if the emtpy string is passed, all countries will be returned
@@ -100,32 +101,40 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, code string) {
 			http.Error(w, "Bad request, neighbours must equal true or false", http.StatusBadRequest)
 		}
 		if neighboursTrue {
-			var neighbours []country
-			context :=
-				util.HandlerContext{Name: "current", Writer: &w, Client: &http.Client{Timeout: 10 * time.Second}}
-			var URL string
-			// forms URL for request, formatted to either stubserver or external API
-			if consts.Development {
-				URL = consts.StubDomain + consts.CountryCodePath + countriesCode + strings.ToUpper(code)
-			} else {
-				URL = restCountries + consts.CountryCodePath + countriesCode + code + bordersAffix
-			}
-			// sends request to stubserver/API
-			msg, err := util.HandleOutgoing(
-				&context,
-				http.MethodGet,
-				URL,
-				nil,
-				&neighbours)
-			if err != nil {
-				fmt.Fprintf(w, msg, err)
-			}
-			// if country has neighbours according to stub/API, tries to find them in dataset
-			if len(neighbours) > 0 {
-				for _, val := range neighbours[0].Neighbours {
-					stats = append(stats, readStatsFromFile(dataSetPath, lastYearString, val)...)
-				}
-			}
+			ret := make(chan caching.CacheResponse)
+			request <- caching.CacheRequest{ChannelRef: ret, CountryRequest: []string{code}}
+			result := <-ret
+			log.Println(result)
+			// for _, val := range result.Neighbours {
+			// 	stats = append(stats, readStatsFromFile(dataSetPath, lastYearString, val[])...)
+			// }
+			// var neighbours []country
+			// context :=
+			// 	util.HandlerContext{Name: "current", Writer: &w, Client: &http.Client{Timeout: 10 * time.Second}}
+			// var URL string
+			// // forms URL for request, formatted to either stubserver or external API
+			// if consts.Development {
+			// 	URL = consts.StubDomain + consts.CountryCodePath + countriesCode + strings.ToUpper(code)
+			// } else {
+			// 	URL = restCountries + consts.CountryCodePath + countriesCode + code + bordersAffix
+			// }
+			// // sends request to stubserver/API
+			// msg, err := util.HandleOutgoing(
+			// 	&context,
+			// 	http.MethodGet,
+			// 	URL,
+			// 	nil,
+			// 	&neighbours)
+			// if err != nil {
+			// 	log.Println(msg, err)
+			// 	return
+			// }
+			// // if country has neighbours according to stub/API, tries to find them in dataset
+			// if len(neighbours) > 0 {
+			// 	for _, val := range neighbours[0].Neighbours {
+			// 		stats = append(stats, readStatsFromFile(dataSetPath, lastYearString, val)...)
+			// 	}
+			// }
 
 		}
 	}
@@ -204,7 +213,8 @@ func readStatsFromFile(p string, year string, code string) []RenewableStatistics
 			break
 		}
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
+			return []RenewableStatistics{}
 		}
 		// if the year-field in the current line in the file matches the year argument
 		// a new statistics struct, containing that line's information is appended to the slice
@@ -238,7 +248,8 @@ func readPercentageFromFile(p string, code string) float64 {
 			break
 		}
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
+			return 0.0
 		}
 		// if the line in the file has a cc3a code matching the code-param,
 		// its renewable energy percentage is added to the current sum
