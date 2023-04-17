@@ -26,6 +26,10 @@ func TestFragmentsFromPath(t *testing.T) {
 			[]string{"filtered", "%20parrot%20in", "%GARDden"}},
 		{"test_2", "unibus/v2/", "/v2/",
 			[]string{"unibus", "v2"}},
+		{"test_3", "unibus//", "unibus",
+            []string{}},
+        {"test_4", "unibus/ /", "unibus",
+            []string{"%20"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, runFragmentsTest(tt.path, tt.rootPath, tt.expected))
