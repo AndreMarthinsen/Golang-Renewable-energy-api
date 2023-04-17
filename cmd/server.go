@@ -23,25 +23,20 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		log.Println("$PORT has been set. Default: " + consts.DefaultPort)
+		log.Println("main: $PORT has been set. Default: " + consts.DefaultPort)
 		port = consts.DefaultPort
-	}
-	stubStop := make(chan struct{})
-	if consts.Development { // WARNING: Ensure Development is set false for release.
-		wg.Add(1)
-		go stubbing.RunSTUBServer(&wg, consts.StubPort, stubStop)
 	}
 
 	ctx := context.Background()
 	opt := option.WithCredentialsFile("./cmd/sha.json")
 	app, err := firebase.NewApp(ctx, nil, opt)
 	if err != nil {
-		log.Fatal("failed to to create new app")
+		log.Fatal("main: failed to to create new app", err)
 	}
 
 	client, err := app.Firestore(ctx)
 	if err != nil {
-		log.Fatal("Failed to set up firestore client")
+		log.Fatal("main: failed to set up firestore client:", err)
 	}
 
 	config := util.Config{
@@ -54,6 +49,12 @@ func main() {
 		CachingCollection: "Caches",
 		PrimaryCache:      "TestData",
 		WebhookCollection: "Webhooks",
+	}
+
+	stubStop := make(chan struct{})
+	if config.DevelopmentMode {
+		wg.Add(1)
+		go stubbing.RunSTUBServer(&config, &wg, consts.StubPort, stubStop)
 	}
 
 	requestChannel := make(chan caching.CacheRequest)
@@ -73,7 +74,7 @@ func main() {
 	http.HandleFunc(consts.NotificationPath, notificationHandler)
 	http.HandleFunc(consts.StatusPath, statusHandler)
 
-	log.Println("Listening on port " + port)
+	log.Println("main: service listening on port " + port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 	// stub service can now be stopped with: stubStop <- struct{}{}
 
