@@ -2,7 +2,7 @@ package consts
 
 // External paths
 
-const CountryDomain = "https://restcountries.com"
+const CountryDomain = "http://129.241.150.113:8080/"
 const CountryNamePath = "/v3.1/name/"
 const CountryCodePath = "/v3.1/alpha/"
 const CountryFilteringByName = "?fields=name,languages,maps,borders&fullText=true"

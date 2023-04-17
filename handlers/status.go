@@ -20,35 +20,46 @@ type ServiceStatus struct {
 }
 
 // HandlerStatus Handler for the status endpoint
-func HandlerStatus(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		w.Header().Set("content-type", "application/json")
+func HandlerStatus(cfg *util.Config) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			w.Header().Set("content-type", "application/json")
 
-		countries, err := util.GetDomainStatus(consts.CountriesUrl)
-		if err != nil {
-			http.Error(w, "Error while handling request.", http.StatusInternalServerError)
-			return
-		}
-		energy, err := util.GetDomainStatus(consts.NotificationsDbUrl)
-		if err != nil {
-			http.Error(w, "Error while handling request.", http.StatusInternalServerError)
-			return
-		}
-		serviceStatus := ServiceStatus{
-			CountriesApi:    countries,
-			NotificationsDb: energy,
-			Webhooks:        countWebhooks(),
-			Version:         consts.Version,
-			Uptime:          getUptime(),
-		}
-		// json response to user:
-		util.EncodeAndWriteResponse(&w, serviceStatus)
+			var countryService string
+			if cfg.DevelopmentMode {
+				countryService = consts.StubDomain
+			} else {
+				countryService = consts.CountryDomain
+			}
 
-	default:
-		http.Error(w, "http method not supported.", http.StatusMethodNotAllowed)
+			countries, err := util.GetDomainStatus(countryService)
+			if err != nil {
+				http.Error(w, "Error while handling request.", http.StatusInternalServerError)
+				return
+			}
+			/*
+				energy, err := util.GetDomainStatus(consts.NotificationsDbUrl)
+				if err != nil {
+					http.Error(w, "Error while handling request.", http.StatusInternalServerError)
+					return
+				}
+			*/
+
+			serviceStatus := ServiceStatus{
+				CountriesApi:    countries,
+				NotificationsDb: "", // TODO: See commented out section above
+				Webhooks:        countWebhooks(),
+				Version:         consts.Version,
+				Uptime:          getUptime(),
+			}
+			// json response to user:
+			util.EncodeAndWriteResponse(&w, serviceStatus)
+
+		default:
+			http.Error(w, "http method not supported.", http.StatusMethodNotAllowed)
+		}
 	}
-
 }
 
 // getUptime returns uptime since last service restart

@@ -67,10 +67,11 @@ func main() {
 		<-doneSignal
 	}()
 	notificationHandler := handlers.HandlerNotification(&config)
+	statusHandler := handlers.HandlerStatus(&config)
 
 	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew())
 	http.HandleFunc(consts.NotificationPath, notificationHandler)
-	http.HandleFunc(consts.StatusPath, handlers.HandlerStatus)
+	http.HandleFunc(consts.StatusPath, statusHandler)
 
 	log.Println("Listening on port " + port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
