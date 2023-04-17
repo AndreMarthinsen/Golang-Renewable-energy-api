@@ -4,13 +4,30 @@
 package util
 
 import (
+	"cloud.google.com/go/firestore"
+	"context"
 	"encoding/json"
 	"io"
 	"log"
+	// "os"
 	"net"
 	"net/http"
 	"strings"
+	"time"
 )
+
+// Config contains project config.
+type Config struct {
+	CachePushRate     time.Duration // Cache is pushed to external DB with CachePushRate as its interval
+	CacheTimeLimit    time.Duration // Cache entries older than CacheTimeLimit are purged upon loading
+	DebugMode         bool          // toggles any extra debug features such as extra logging of events
+	DevelopmentMode   bool          // Sets the service to use stubbing of external APIs
+	Ctx               *context.Context
+	FirestoreClient   *firestore.Client
+	CachingCollection string
+	PrimaryCache      string
+	WebhookCollection string
+}
 
 // HandlerContext is a container for the name, writer and client object associated with
 // a handler body.
@@ -47,9 +64,11 @@ func GetDomainStatus(URL string) (string, error) {
 	} else {
 		status = response.Status
 	}
-	err = response.Body.Close()
-	if err != nil {
-		log.Println(URL, ": Failed to close body:", err)
+	if response != nil { // response == nil in case of time out
+		err = response.Body.Close()
+		if err != nil {
+			log.Println(URL, ": Failed to close body:", err)
+		}
 	}
 	return status, err
 }
@@ -94,3 +113,9 @@ func HandleOutgoing(handler *HandlerContext, method string, URL string, reader i
 	return "", nil
 }
 
+// LogOnDebug logs all argument items if Config.DebugMode == true
+func LogOnDebug(cfg *Config, msg ...any) {
+	if cfg.DebugMode {
+		log.Println("dbg:", msg)
+	}
+}
