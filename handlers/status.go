@@ -2,8 +2,11 @@ package handlers
 
 import (
 	"Assignment2/consts"
+	"Assignment2/fsutils"
 	"Assignment2/util"
+	"log"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -14,7 +17,7 @@ var StartTime = time.Now()
 type ServiceStatus struct {
 	CountriesApi    string `json:"countries_api"`
 	NotificationsDb string `json:"notification_db"`
-	Webhooks        int    `json:"webhooks"`
+	Webhooks        string `json:"webhooks"`
 	Version         string `json:"version"`
 	Uptime          int    `json:"uptime"`
 }
@@ -38,6 +41,7 @@ func HandlerStatus(cfg *util.Config) func(http.ResponseWriter, *http.Request) {
 				http.Error(w, "Error while handling request.", http.StatusInternalServerError)
 				return
 			}
+
 			/*
 				energy, err := util.GetDomainStatus(consts.NotificationsDbUrl)
 				if err != nil {
@@ -46,10 +50,18 @@ func HandlerStatus(cfg *util.Config) func(http.ResponseWriter, *http.Request) {
 				}
 			*/
 
+			webhookCount, err := countWebhooks(cfg)
+			var webhooks string
+			if err != nil {
+				webhooks = "Unable to count"
+			} else {
+				webhooks = strconv.Itoa(webhookCount)
+			}
+
 			serviceStatus := ServiceStatus{
 				CountriesApi:    countries,
 				NotificationsDb: "", // TODO: See commented out section above
-				Webhooks:        countWebhooks(),
+				Webhooks:        webhooks,
 				Version:         consts.Version,
 				Uptime:          getUptime(),
 			}
@@ -68,7 +80,11 @@ func getUptime() int {
 }
 
 // countWebhooks returns number of stored webhooks in Firebase
-func countWebhooks() int {
-	return 0
-	// TODO implement body
+func countWebhooks(cfg *util.Config) (int, error) {
+	count, err := fsutils.CountDocuments(cfg, cfg.WebhookCollection)
+	if err != nil {
+		log.Println("could not get webhooks count")
+		return 0, err
+	}
+	return count, nil
 }
