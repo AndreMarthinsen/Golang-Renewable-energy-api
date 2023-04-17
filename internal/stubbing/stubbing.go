@@ -4,6 +4,8 @@ package stubbing
 
 import (
 	"Assignment2/consts"
+	"Assignment2/util"
+
 	//"Assignment2/util"
 	"errors"
 	"fmt"
@@ -40,27 +42,26 @@ func parseFile(filePath string) []byte {
 // Example:
 // http://localhost:8888/v3.1/alpha/?codes=NOR,KOR
 // Returns json file containing data for Norway and South Korea
-func StubHandler(debug bool) func(http.ResponseWriter, *http.Request) {
+func StubHandler(cfg *util.Config) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("content-type", "application/json")
 		path := r.URL.Path
-		if debug {
-			log.Println("Stub handler called with path " + r.URL.Path)
-		}
+
+		util.LogOnDebug(cfg, "stub debug: stub handler called with path "+r.URL.Path)
+
 		switch path { // Uses switch for easy expansion
 		case consts.CountryCodePath:
 			codes := strings.FieldsFunc(
 				r.URL.Query().Get("codes"),
 				func(c rune) bool { return c == ',' },
 			)
-			if debug {
-				log.Println("stub debug: cca3 queries prior to filtering: ", codes)
-			}
+			util.LogOnDebug(cfg, "stub debug: cca3 queries prior to filtering: ", codes)
+
 			codes = filterCountryCodes(codes)
 			if len(codes) == 0 { // Indicates no codes of valid length [2, 3]
 				response := "{\"status\":400,\"message\":\"Bad Request\"}"
 				if _, err := fmt.Fprint(w, response); err != nil {
-					log.Fatal("stub handler failed to return response body to client.")
+					log.Println("stub handler failed to return response body to client.")
 				}
 				w.WriteHeader(http.StatusBadRequest)
 				return
@@ -73,13 +74,11 @@ func StubHandler(debug bool) func(http.ResponseWriter, *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}
 			if _, err = fmt.Fprint(w, response); err != nil {
-				log.Fatal("stub handler failed to return response body to client.")
+				log.Fatal("stub: handler failed to return response body to client.")
 			}
 			return
 		default:
-			if debug {
-				log.Println("Path: " + r.URL.Path + " not currently supported by stubbing service.")
-			}
+			util.LogOnDebug(cfg, "stub: path "+r.URL.Path+" not currently supported by stubbing service.")
 			http.Error(w, "Not a recognized path for stubbing", http.StatusNotImplemented)
 		}
 	}
@@ -120,24 +119,24 @@ func filterCountryCodes(countryCodes []string) []string {
 
 // RunSTUBServer runs a stubbing service using the net/http module.
 // See StubHandler for closer detail on what stubbing is provided by the service.
-func RunSTUBServer(group *sync.WaitGroup, port string, stop chan struct{}) {
+func RunSTUBServer(cfg *util.Config, group *sync.WaitGroup, port string, stop chan struct{}) {
 	defer group.Done()
 
-	log.Println("STUB service running on port", port)
+	log.Println("stub: service running on port", port)
 
 	server := http.Server{
 		Addr:    ":" + port,
-		Handler: http.HandlerFunc(StubHandler(true)),
+		Handler: http.HandlerFunc(StubHandler(cfg)),
 	}
 
 	go func() {
 		err := server.ListenAndServe()
-		log.Println("stub service shut down: ", err)
+		log.Println("stub: service shut down: ", err)
 	}()
 
 	<-stop // waits on stop signal to shut down the stub server
 	if err := server.Shutdown(nil); err != nil {
-		log.Println("failed to properly shut down stubbing service")
+		log.Println("stub: failed to properly shut down stubbing service")
 	}
 
 }
