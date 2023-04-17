@@ -20,30 +20,46 @@ func TestCurrentRenewables(t *testing.T) {
 	handler := handlers.HandlerRenew()
 
 	server := httptest.NewServer(http.HandlerFunc(handler))
+	// URL under which server is instantiated
+	fmt.Println("Server running on URL: ", server.URL)
 
 	defer server.Close()
+	
 
 	client := http.Client{}
 
-	// URL under which server is instantiated, with path for current renewables
-	fmt.Println("Server running on URL: ", server.URL)
-
-	// Retrieve content from server
-	res, err := client.Get(server.URL + currentPath)
-	if err != nil {
-		t.Fatal("Get request to URL failed:", err.Error())
+	tests := []struct {
+		name     string
+		query    string
+		expected string
+	}{
+		{name: "Test 1", query: "NOR", expected: "NOR"},
+		{name: "Test 2", query: "INV", expected: ""},
+		{name: "Test 3", query: "NOR", expected: "NOR"},
+		{name: "Test 4", query: "NOR", expected: "NOR"},
 	}
 
-	// decodes information from request
-	var statistics []handlers.RenewableStatistics
-	err = json.NewDecoder(res.Body).Decode(&statistics)
-	if err != nil {
-		t.Fatal("Error during decoding:", err.Error())
-	}
+	for _, tt := range tests {
+		url := server.URL + currentPath + tt.query
 
-	fmt.Println(len(statistics))
+		// Retrieve content from server
+		res, err := client.Get(url)
+		if err != nil {
+			t.Fatal("Get request to URL failed:", err.Error())
+		}
 
-	if statistics[0].Name != "Algeria" {
-		t.Fatal("First country information is wrong")
+		// decodes information from request
+		var statistics []handlers.RenewableStatistics
+		err = json.NewDecoder(res.Body).Decode(&statistics)
+		if err != nil {
+			t.Fatal("Error during decoding:", err.Error())
+		}
+
+		fmt.Println(len(statistics))
+
+		if statistics[0].Isocode != tt.expected {
+			t.Fatal("First country information is wrong")
+		}
 	}
+	
 }

@@ -6,8 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="83cc07c0-a34c-4de2-9444-fd1b8060365b" name="Changes" comment="Added main server; consts for endpoint paths; empty endpoint handlers">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cmd/server.go" beforeDir="false" afterPath="$PROJECT_DIR$/cmd/server.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/handlers/renewables.go" beforeDir="false" afterPath="$PROJECT_DIR$/handlers/renewables.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/testing/renewables_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/testing/renewables_test.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -89,7 +88,7 @@
                   <entry key="branch">
                     <value>
                       <list>
-                        <option value="5-entrypoint" />
+                        <option value="origin/notification-handlers" />
                       </list>
                     </value>
                   </entry>
