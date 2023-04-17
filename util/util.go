@@ -4,13 +4,28 @@
 package util
 
 import (
+	"cloud.google.com/go/firestore"
+	"context"
 	"encoding/json"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"strings"
+	"time"
 )
+
+// Config contains project config. TODO: Moves this to a more fitting package.
+type Config struct {
+	CachePushRate     time.Duration
+	CacheTimeLimit    time.Duration
+	DebugMode         bool
+	DevelopmentMode   bool
+	Ctx               *context.Context
+	FirestoreClient   *firestore.Client
+	CachingCollection string
+	PrimaryCache      string
+}
 
 // HandlerContext is a container for the name, writer and client object associated with
 // a handler body.
@@ -94,4 +109,11 @@ func HandleOutgoing(handler *HandlerContext, method string, URL string, reader i
 		return handler.Name + "failed to decode", err
 	}
 	return "", nil
+}
+
+// LogOnDebug logs all argument items if Config.DebugMode == true
+func LogOnDebug(cfg *Config, msg ...any) {
+	if cfg.DebugMode {
+		log.Println("dbg:", msg)
+	}
 }
