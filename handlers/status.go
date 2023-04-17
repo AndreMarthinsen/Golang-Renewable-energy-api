@@ -4,6 +4,7 @@ import (
 	"Assignment2/consts"
 	"Assignment2/fsutils"
 	"Assignment2/util"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -22,6 +23,11 @@ type ServiceStatus struct {
 	Uptime          int    `json:"uptime"`
 }
 
+// Collection with one document, to check if db is available:
+const dbCheckCollection = "dbCheckCollection"
+const dbCheckDocument = "dbCheckDocument"
+const dbCheckValue = http.StatusOK
+
 // HandlerStatus Handler for the status endpoint
 func HandlerStatus(cfg *util.Config) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -36,19 +42,31 @@ func HandlerStatus(cfg *util.Config) func(http.ResponseWriter, *http.Request) {
 				countryService = consts.CountryDomain
 			}
 
-			countries, err := util.GetDomainStatus(countryService)
+			countriesStatus, err := util.GetDomainStatus(countryService)
 			if err != nil {
 				http.Error(w, "Error while handling request.", http.StatusInternalServerError)
 				return
 			}
 
+			// add a known document to DB
+			// TODO move to main; overwrite document at every startup?
 			/*
-				energy, err := util.GetDomainStatus(consts.NotificationsDbUrl)
+				checkData := make(map[string]int)
+				checkData["status code"] = dbCheckValue
+				err = fsutils.AddDocumentById(cfg, dbCheckCollection, dbCheckDocument, checkData)
 				if err != nil {
-					http.Error(w, "Error while handling request.", http.StatusInternalServerError)
-					return
+					log.Println("could not add check document to db")
 				}
 			*/
+
+			// Read back document with stored status code:
+			notificationStatusCode := make(map[string]int)
+			err = fsutils.ReadDocumentGeneral(cfg, dbCheckCollection, dbCheckDocument, &notificationStatusCode)
+			if err != nil {
+				http.Error(w, "Error while handling request.", http.StatusInternalServerError)
+				return
+			}
+			notificationStatus := fmt.Sprint(notificationStatusCode["status code"]) + " " + http.StatusText(notificationStatusCode["status code"])
 
 			webhookCount, err := countWebhooks(cfg)
 			var webhooks string
@@ -59,8 +77,8 @@ func HandlerStatus(cfg *util.Config) func(http.ResponseWriter, *http.Request) {
 			}
 
 			serviceStatus := ServiceStatus{
-				CountriesApi:    countries,
-				NotificationsDb: "", // TODO: See commented out section above
+				CountriesApi:    countriesStatus,
+				NotificationsDb: notificationStatus,
 				Webhooks:        webhooks,
 				Version:         consts.Version,
 				Uptime:          getUptime(),
