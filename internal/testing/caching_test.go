@@ -61,7 +61,7 @@ func TestRunCacheWorker(t *testing.T) {
 	wg := sync.WaitGroup{}
 	defer wg.Wait()
 
-	go stubbing.RunSTUBServer(&wg, consts.StubPort, stop)
+	go stubbing.RunSTUBServer(&config, &wg, consts.StubPort, stop)
 	go caching.RunCacheWorker(&config, requests, stop, done)
 
 	time.Sleep(time.Second * 1)
