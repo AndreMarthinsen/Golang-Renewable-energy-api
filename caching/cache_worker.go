@@ -36,7 +36,7 @@ func RunCacheWorker(cfg *util.Config, requests chan CacheRequest, stop <-chan st
 	// Main request-handling loop. Runs until a stop signal is received or request channel is closed.
 	for {
 		select {
-		case <-time.After(time.Second * 5):
+		case <-time.After(cfg.CachePushRate):
 			if cacheUpdated {
 				// Updates external Cache file by overwriting
 				err := fsutils.AddDocumentById(cfg, cfg.CachingCollection, cfg.PrimaryCache, &localCache)
