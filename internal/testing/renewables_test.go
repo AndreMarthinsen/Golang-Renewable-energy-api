@@ -22,15 +22,18 @@ import (
 
 // Internal paths
 const currentPath = consts.RenewablesPath + "current/"
+const historyPath = consts.RenewablesPath + "history/"
 const neighbourAffix = "?neighbours=true"
+
+// The number of tests that will be run concurrently
+const concurrentTestNumber = 100
 
 var wg sync.WaitGroup
 
-// const historyPath = consts.RenewablesPath + "history/"
-// TestCurrentRenewables tests the renewables/current/ endpoint
-func TestCurrentRenewables(t *testing.T) {
+// TestRenewables tests the renewables/ endpoint, for both current and history
+func TestRenewables(t *testing.T) {
 	defer wg.Wait()
-
+	// sets up firestore context and credentials
 	ctx := context.Background()
 	opt := option.WithCredentialsFile("./sha.json")
 	app, err := firebase.NewApp(ctx, nil, opt)
@@ -43,6 +46,7 @@ func TestCurrentRenewables(t *testing.T) {
 		log.Fatal("Failed to set up caching client")
 	}
 
+	// sets up the configuration, including the firestore context and caching variables
 	config := util.Config{
 		CachePushRate:     5 * time.Second,
 		CacheTimeLimit:    2 * time.Hour,
@@ -54,16 +58,19 @@ func TestCurrentRenewables(t *testing.T) {
 		PrimaryCache:      "TestData",
 		WebhookCollection: "Webhooks",
 	}
+	// if the program is in development mode, a stubserver is run as a goroutine
 	stubStop := make(chan struct{})
 	if config.DevelopmentMode {
 		wg.Add(1)
 		go stubbing.RunSTUBServer(&config, &wg, consts.StubPort, stubStop)
 	}
 
+	// makes 10 channels for the cacheworker
 	var requestChannel = make(chan caching.CacheRequest, 10)
 	stopSignal := make(chan struct{})
 	doneSignal := make(chan struct{})
 
+	// starts a goroutine for the cacheworker
 	go caching.RunCacheWorker(&config, requestChannel, stopSignal, doneSignal)
 
 	defer func() { // TODO: Just use a wait group, if that's better
@@ -72,7 +79,7 @@ func TestCurrentRenewables(t *testing.T) {
 	}()
 
 	// Sets handler to the renewables handler
-	handler := handlers.HandlerRenew(requestChannel)
+	handler := handlers.HandlerRenew(requestChannel, &config)
 
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	// URL under which server is instantiated
@@ -80,11 +87,14 @@ func TestCurrentRenewables(t *testing.T) {
 	defer server.Close()
 	client := http.Client{}
 
-	runCurrentHandlerTest2 := func(wg *sync.WaitGroup, query string, expectedCode string) func(*testing.T) {
+	runHandlerTest := func(wg *sync.WaitGroup, query string, expectedCode string, routine bool) func(*testing.T) {
 		return func(t *testing.T) {
-			defer wg.Done()
+			// if the test has been run as part of a go-routine, it will defer signal the
+			// wait group that the routine is done until the function exits/returns
+			if routine {
+				defer wg.Done()
+			}
 			statistics := make([]handlers.RenewableStatistics, 0)
-			//url := server.URL + currentPath + query + neighbourAffix
 			request, err := http.NewRequest(http.MethodGet, query, nil)
 			response, err := client.Do(request)
 			if err != nil {
@@ -101,6 +111,9 @@ func TestCurrentRenewables(t *testing.T) {
 			if err = decoder.Decode(&statistics); err != nil && len(expectedCode) != 0 {
 				t.Error("Get request to URL failed:", err.Error())
 			}
+			// if the first element of the decoded statsitcs is wrong, the test will faill
+			// for situations like fetching information about all countries this might be too lenient a test
+			// The alternative is to have a expected slice that encapsulates ALL information in the dataset
 			if statistics[0].Isocode != expectedCode {
 				t.Error("Unexpected query returned. Expected: ",
 					expectedCode, " but got ", statistics[0].Isocode)
@@ -108,7 +121,8 @@ func TestCurrentRenewables(t *testing.T) {
 		}
 	}
 
-	var tt = []struct {
+	// the test, including the name, code to be tested and expected code in the first element of the decoded response
+	var tests = []struct {
 		name     string
 		query    string
 		expected string
@@ -125,14 +139,30 @@ func TestCurrentRenewables(t *testing.T) {
 		{"VNM test", "VNM", "VNM"},
 	}
 
-	wg.Add(10)
-	for i := 0; i < 10; i++ {
+	// runs a number of concurrent tests equal to testnumber
+	wg.Add(concurrentTestNumber)
+	for i := 0; i < concurrentTestNumber; i++ {
 		randomNumber := rand.Intn(8)
-		go t.Run(tt[randomNumber].name+"neighbour", runCurrentHandlerTest2(&wg,
-			server.URL+currentPath+tt[randomNumber].query+neighbourAffix,
-			tt[randomNumber].expected))
+		go t.Run("/current test for country code "+tests[randomNumber].name+" with neighbour query",
+			runHandlerTest(&wg,
+				server.URL+currentPath+tests[randomNumber].query+neighbourAffix,
+				tests[randomNumber].expected,
+				true))
 	}
 
-	t.Run(tt[3].name,
-		runCurrentHandlerTest2(&wg, server.URL+currentPath+tt[3].query, tt[3].expected))
+	// runs test for all countries in renewables/current/ endpoint
+	t.Run("All /current countries test", runHandlerTest(&wg, server.URL+currentPath, "ALG", false))
+
+	// runs tests for random countries in historical handler
+	for i := 0; i < 10; i++ {
+		randomNumber := rand.Intn(8)
+		t.Run("/history test for country code "+tests[randomNumber].name,
+			runHandlerTest(&wg,
+				server.URL+historyPath+tests[randomNumber].query+neighbourAffix,
+				tests[randomNumber].expected,
+				false))
+	}
+
+	// runs test for all countries in renewable/history endpoint
+	t.Run("All /current countries test", runHandlerTest(&wg, server.URL+historyPath, "ALG", false))
 }
