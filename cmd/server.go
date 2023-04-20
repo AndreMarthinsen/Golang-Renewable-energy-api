@@ -4,6 +4,7 @@ import (
 	"Assignment2/caching"
 	"Assignment2/consts"
 	"Assignment2/handlers"
+	"Assignment2/handlers/notifications"
 	"Assignment2/internal/stubbing"
 	"Assignment2/util"
 	"context"
@@ -67,7 +68,7 @@ func main() {
 		stopSignal <- struct{}{}
 		<-doneSignal
 	}()
-	notificationHandler := handlers.HandlerNotification(&config)
+	notificationHandler := notifications.HandlerNotification(&config)
 	statusHandler := handlers.HandlerStatus(&config)
 
 	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(requestChannel))

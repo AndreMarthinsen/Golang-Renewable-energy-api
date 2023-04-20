@@ -1,4 +1,4 @@
-package handlers
+package notifications
 
 import (
 	"Assignment2/consts"
@@ -12,20 +12,6 @@ import (
 	"net/http"
 	"time"
 )
-
-// Webhook provides the json structure for the expected request
-// body of a webhook registration.
-type Webhook struct {
-	URL     string `json:"url"`
-	Country string `json:"country"`
-	Calls   int32  `json:"calls"`
-}
-
-// WebhookRegResp provides the json structure of the response body
-// upon registration of a valid webhook.
-type WebhookRegResp struct {
-	WebhookId string `json:"webhook_id"`
-}
 
 // HandlerNotification The handler for the notification endpoint
 func HandlerNotification(cfg *util.Config) func(w http.ResponseWriter, r *http.Request) {
