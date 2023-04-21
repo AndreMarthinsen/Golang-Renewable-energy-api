@@ -10,18 +10,22 @@ type Webhook struct {
 
 // WebhookRegistration provides the document structure of a
 // webhook registration. CallCount is the invocation
-// count for the registered country last time the webhook registration
-// was checked for a potential trigger.
+// count for the country since the registration of the webhook.
 //
 // WARNING: CallCount MUST be updated in DB on an invocation check.
-// if the current invocation count of NOR is 103 at the time of the previous check,
-// invocations from previous update is current in-cache invocation count - previous count.
-// If Calls is any multiple of the sum, send x messages to the registered url.
 type WebhookRegistration struct {
-	URL       string `json:"url"`
-	Country   string `json:"country"`
-	Calls     int32  `json:"calls"`
+	URL       string `firestore:"url"`
+	Country   string `firestore:"country"`
+	Calls     int32  `firestore:"calls"`
 	CallCount int32  `firestore:"call_count"`
+}
+
+// WebhookTrigger contains the information to be sent to the url of a registered
+// webhook upon it being triggered.
+type WebhookTrigger struct {
+	WebhookId  string `json:"webhook_id"`
+	Country    string `json:"country"`
+	TotalCalls string `json:"calls"`
 }
 
 // WebhookRegResp provides the json structure of the response body
