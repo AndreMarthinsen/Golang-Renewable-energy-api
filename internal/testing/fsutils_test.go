@@ -18,7 +18,7 @@ type MockData struct {
 	Third  MockType `firestore:"third,omitempty"`
 }
 
-const serviceAccountPath = "./demo-service-account.json"
+const serviceAccountPath = "./sha.json"
 const testCollection = "mess"
 
 // TestInitializeFirestore checks if initializing is successful

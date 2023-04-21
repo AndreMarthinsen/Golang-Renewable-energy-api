@@ -24,9 +24,11 @@ type ServiceStatus struct {
 }
 
 // Collection with one document, to check if db is available:
-const dbCheckCollection = "dbCheckCollection"
-const dbCheckDocument = "dbCheckDocument"
-const dbCheckValue = http.StatusOK
+const dbProbeCollection = "dbProbeCollection"
+const dbProbeDocument = "dbProbeDocument"
+
+// TODO remove when everything works
+//const dbProbeValue = http.StatusOK
 
 // HandlerStatus Handler for the status endpoint
 func HandlerStatus(cfg *util.Config) func(http.ResponseWriter, *http.Request) {
@@ -49,19 +51,18 @@ func HandlerStatus(cfg *util.Config) func(http.ResponseWriter, *http.Request) {
 			}
 
 			// add a known document to DB
-			// TODO move to main; overwrite document at every startup?
+			// TODO remove when everything works
 			/*
-				checkData := make(map[string]int)
-				checkData["status code"] = dbCheckValue
-				err = fsutils.AddDocumentById(cfg, dbCheckCollection, dbCheckDocument, checkData)
+				probeData := make(map[string]int)
+				probeData["status code"] = dbProbeValue
+				err = fsutils.AddDocumentById(cfg, dbProbeCollection, dbProbeDocument, probeData)
 				if err != nil {
 					log.Println("could not add check document to db")
 				}
 			*/
-
 			// Read back document with stored status code:
 			notificationStatusCode := make(map[string]int)
-			err = fsutils.ReadDocumentGeneral(cfg, dbCheckCollection, dbCheckDocument, &notificationStatusCode)
+			err = fsutils.ReadDocumentGeneral(cfg, dbProbeCollection, dbProbeDocument, &notificationStatusCode)
 			if err != nil {
 				http.Error(w, "Error while handling request.", http.StatusInternalServerError)
 				return
