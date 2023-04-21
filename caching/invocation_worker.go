@@ -7,6 +7,7 @@ import (
 	"cloud.google.com/go/firestore"
 	"encoding/json"
 	"google.golang.org/api/iterator"
+	"log"
 	"net/http"
 	"time"
 )
@@ -36,7 +37,7 @@ func InvocationWorker(cfg *util.Config, stop chan struct{}, invocationChannel ch
 					invocationMap[cca3] = counter
 				}
 			}
-			//TODO: Max 20 operations per bulk operation
+
 			query := cfg.FirestoreClient.Collection(cfg.WebhookCollection).Where("country", "in", updatedCountries)
 			iter := query.Documents(*cfg.Ctx)
 
@@ -54,11 +55,13 @@ func InvocationWorker(cfg *util.Config, stop chan struct{}, invocationChannel ch
 					break
 				}
 				if err != nil {
-					//TODO: Handle error
+					log.Println("notification worker: ", err)
+					break
 				}
 				webhook := notifications.WebhookRegistration{}
 				if err = doc.DataTo(&webhook); err != nil {
-					//TODO: Handle error
+					log.Println("notification worker: ", err)
+					break
 				}
 				_, err = bulkOperation.Update(
 					doc.Ref,
@@ -69,31 +72,34 @@ func InvocationWorker(cfg *util.Config, stop chan struct{}, invocationChannel ch
 						},
 					})
 				if err != nil {
-					//TODO: Handle error
+					log.Println("notification worker: ", err)
+					break
 				}
 				webhooksToCheck = append(webhooksToCheck, webhookCheck{ID: doc.Ref.ID, Registration: webhook})
 			}
 			// Iterates through relevant webhooks and
-			for i, wh := range webhooksToCheck {
-				oldCount := wh.Registration.CallCount
-				newCount := invocationMap[wh.Registration.Country].Count + oldCount
-				previousTriggers := oldCount / wh.Registration.Calls
-				triggers := newCount/wh.Registration.Calls - previousTriggers
+			for i, webhook := range webhooksToCheck {
+				oldCount := webhook.Registration.CallCount
+				newCount := invocationMap[webhook.Registration.Country].Count + oldCount
+				previousTriggers := oldCount / webhook.Registration.Calls
+				triggers := newCount/webhook.Registration.Calls - previousTriggers
 				if triggers != 0 {
 					for j := 0; int32(j) < triggers; j++ {
 						//TODO: Use Evens thing to get country name
 						message := notifications.WebhookTrigger{
-							WebhookId:  wh.ID,
-							Country:    wh.Registration.Country,
-							TotalCalls: previousTriggers + int32(j)*wh.Registration.Calls,
+							WebhookId:  webhook.ID,
+							Country:    webhook.Registration.Country,
+							TotalCalls: previousTriggers + int32(j)*webhook.Registration.Calls,
 						}
 						payload, err := json.Marshal(message)
 						if err != nil {
-							//TODO: Handle error
+							log.Println("invocation worker: ", err)
+							break // TODO: Best response to this?
 						}
-						request, err := http.NewRequest(http.MethodPost, wh.Registration.URL, bytes.NewBuffer(payload))
+						request, err := http.NewRequest(http.MethodPost, webhook.Registration.URL, bytes.NewBuffer(payload))
 						if err != nil {
-							//TODO: Handle error
+							log.Println("invocation worker: ", err)
+							break // TODO: Best response to this?
 						}
 						response, err := client.Do(request)
 						util.LogOnDebug(cfg, "invocation worker: response from recipient on trigger"+
@@ -103,10 +109,8 @@ func InvocationWorker(cfg *util.Config, stop chan struct{}, invocationChannel ch
 				webhooksToCheck[i].Registration.CallCount = newCount
 			}
 
-			//TODO: Send updated ones back to DB
-			bulkOperation.End()
+			bulkOperation.End()                            // Executes write operations
 			invocationMap = map[string]InvocationCounter{} // reset of counters
-			//TODO: Should we bother updating the ones that don't trigger?
 
 		case invocations, ok := <-invocationChannel:
 			if ok != true {
