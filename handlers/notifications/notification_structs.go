@@ -25,7 +25,7 @@ type WebhookRegistration struct {
 type WebhookTrigger struct {
 	WebhookId  string `json:"webhook_id"`
 	Country    string `json:"country"`
-	TotalCalls string `json:"calls"`
+	TotalCalls int32  `json:"calls"`
 }
 
 // WebhookRegResp provides the json structure of the response body
