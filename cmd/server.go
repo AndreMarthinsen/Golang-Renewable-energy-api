@@ -17,10 +17,19 @@ import (
 	"time"
 )
 
+const dataSetPath = "./internal/assets/renewable-share-energy.csv"
+
 var wg sync.WaitGroup
 
 func main() {
 	defer wg.Wait()
+
+	dataset, err := util.InitializeDataset(dataSetPath)
+	if err != nil {
+		// TODO: log an internal server error instead
+		log.Print(err)
+		return
+	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -71,7 +80,7 @@ func main() {
 	notificationHandler := notifications.HandlerNotification(&config)
 	statusHandler := handlers.HandlerStatus(&config)
 
-	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(requestChannel))
+	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(requestChannel, dataset))
 	http.HandleFunc(consts.NotificationPath, notificationHandler)
 	http.HandleFunc(consts.StatusPath, statusHandler)
 

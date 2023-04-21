@@ -4,14 +4,12 @@ import (
 	"Assignment2/caching"
 	"Assignment2/consts"
 	"Assignment2/util"
-	"encoding/csv"
 	"sort"
 
 	//"fmt"
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	//"time"
@@ -42,17 +40,13 @@ type country struct {
 	YearlyPercentages map[int]float64
 }
 
-// dataset contains information about all countries from the dataset
-// it is parsed from the dataset-csv, but does not contain information about the whole world, or parts
-var dataset map[string]country
-
 // sortedYears contains all the years for which a country has a renewable energy percentage
 // sorted in ascending order
 var sortedYears map[string][]int
 
 // HandlerRenew Handler for the renewables endpoint: this checks if the request is GET, and calls the correct function
 // for current renewable percentage or historical renewable percentage
-func HandlerRenew(request chan caching.CacheRequest) func(http.ResponseWriter, *http.Request) {
+func HandlerRenew(request chan caching.CacheRequest, dataset map[string]util.Country) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method { // switch for easy expansion
 		case http.MethodGet:
@@ -68,9 +62,9 @@ func HandlerRenew(request chan caching.CacheRequest) func(http.ResponseWriter, *
 			// checks if path contains /current/ or /history/, if not error message
 			switch path[0] {
 			case currentPath:
-				handlerCurrent(w, r, strings.ToUpper(path[1]), request)
+				handlerCurrent(w, r, strings.ToUpper(path[1]), request, dataset)
 			case historyPath:
-				handlerHistorical(w, r, strings.ToUpper(path[1]))
+				handlerHistorical(w, r, strings.ToUpper(path[1]), dataset)
 			default:
 				http.Error(w, "Not found, only /current/ and /history/ supported", http.StatusNotFound)
 				return
@@ -84,11 +78,10 @@ func HandlerRenew(request chan caching.CacheRequest) func(http.ResponseWriter, *
 
 // handlerCurrent handles requests for renewable energy percentage for the current year in one country,
 // with possibility for returning the same information for that country's neighbours
-func handlerCurrent(w http.ResponseWriter, r *http.Request, code string, request chan caching.CacheRequest) {
+func handlerCurrent(w http.ResponseWriter, r *http.Request, code string, request chan caching.CacheRequest, dataset map[string]util.Country) {
 	var stats []RenewableStatistics
-	if len(dataset) == 0 {
-		initializeDataset()
-		log.Println("Dataset initialized")
+	if len(sortedYears) == 0 {
+		sortDataset(dataset)
 	}
 	// If the empty string is passed, all countries will be returned
 	// Otherwise, tries to find country matching code in dataset
@@ -155,11 +148,10 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, code string, request
 
 // handlerHistorical Handles requests for the history of renewable energy in one country,
 // on a yearly basis. Has functionality for setting starting and ending year of renewables history
-func handlerHistorical(w http.ResponseWriter, r *http.Request, code string) {
+func handlerHistorical(w http.ResponseWriter, r *http.Request, code string, dataset map[string]util.Country) {
 	var stats []RenewableStatistics
-	if len(dataset) == 0 {
-		initializeDataset()
-		log.Println("Dataset initialized")
+	if len(sortedYears) == 0 {
+		sortDataset(dataset)
 	}
 	// if no code is provided, a list of every country's average renewable percentage is returned
 	if code == "" {
@@ -223,7 +215,7 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, code string) {
 // puts in a slice of renewableStats and returns that slice
 func readStatsFromFile(p string, year string, code string) []RenewableStatistics {
 	var statistics []RenewableStatistics
-	nr := readCSV(p)
+	nr := util.ReadCSV(p)
 	for {
 		record, err := nr.Read()
 		if err == io.EOF {
@@ -270,7 +262,7 @@ func readStatsFromFile(p string, year string, code string) []RenewableStatistics
 // of a given country's renewable energy percentages, found by cc3a matching
 func readPercentageFromFile(p string, code string) float64 {
 	var percentage float64
-	nr := readCSV(p)
+	nr := util.ReadCSV(p)
 	for {
 		record, err := nr.Read()
 		if err == io.EOF {
@@ -290,53 +282,13 @@ func readPercentageFromFile(p string, code string) float64 {
 	return percentage
 }
 
-// initializeDataset reads a csv-file line by line and fills a map of country structs
-// with information,
-func initializeDataset() {
-	code := ""
-	dataset = make(map[string]country)
+func sortDataset(dataset map[string]util.Country) {
 	sortedYears = make(map[string][]int)
-	nr := readCSV(dataSetPath)
-	for {
-		record, err := nr.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		if record[1] != code {
-			code = record[1]
-			dataset[record[1]] = country{Name: record[0], YearlyPercentages: make(map[int]float64)}
-		} else if record[1] == code && record[1] != "" {
-			year, _ := strconv.Atoi(record[2])
-			dataset[code].YearlyPercentages[year], _ = strconv.ParseFloat(record[3], 32)
-		}
-	}
-	// removes all entries where the code is not three characters long or where the code is the empty string
-	// could perhaps be eliminated with, but eliminates invalid entries
-	// also sorts the yearly renewable percentages for each year
 	for key, val := range dataset {
 		sortedYears[key] = make([]int, 0)
 		for year := range val.YearlyPercentages {
 			sortedYears[key] = append(sortedYears[key], year)
 		}
 		sort.Ints(sortedYears[key])
-		if key == "" || len(key) > 3 {
-			delete(dataset, key)
-		}
 	}
-}
-
-// readCSV attempts to open a CSV file and return a CSV-reader for that file
-// if unsuccessful, the program crashes
-func readCSV(path string) *csv.Reader {
-	f, err := os.Open(path)
-	if err != nil {
-		log.Fatalf("File error: %v\n", err)
-	}
-	nr := csv.NewReader(f)
-
-	return nr
 }
