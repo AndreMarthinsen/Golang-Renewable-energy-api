@@ -51,7 +51,7 @@ func InvocationWorker(cfg *util.Config, stop chan struct{}, countryDB map[string
 				}
 				// Iterates through relevant webhooks and
 				for i, webhook := range webhooksToCheck {
-					if err := doWebhookEvents(&client, webhook, countryDB, invocationMap); err != nil {
+					if err := doWebhookEvents(cfg, &client, webhook, countryDB, invocationMap); err != nil {
 						log.Println("invocation worker: ", err)
 					} else {
 						webhooksToCheck[i].Body.Count = invocationMap[webhook.Body.Country] + webhook.Body.Count
@@ -114,7 +114,7 @@ func getDocumentsToUpdate(iter *firestore.DocumentIterator, bulkOperation *fires
 	return nil, webhooksToCheck
 }
 
-func doWebhookEvents(client *http.Client, webhook webhookCheck,
+func doWebhookEvents(cfg *util.Config, client *http.Client, webhook webhookCheck,
 	countryDB map[string]util.Country, invocations map[string]int32) error {
 
 	oldCount := webhook.Body.Count
@@ -123,7 +123,9 @@ func doWebhookEvents(client *http.Client, webhook webhookCheck,
 	triggers := newCount/webhook.Body.Calls - previousTriggers
 	if triggers != 0 {
 		for j := 0; int32(j) < triggers; j++ {
+			cfg.DatasetLock.Lock()
 			country, ok := countryDB[webhook.Body.Country]
+			cfg.DatasetLock.Unlock()
 			var countryName string
 			if ok {
 				countryName = country.Name

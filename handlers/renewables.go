@@ -46,7 +46,7 @@ var sortedYears map[string][]int
 
 // HandlerRenew Handler for the renewables endpoint: this checks if the request is GET, and calls the correct function
 // for current renewable percentage or historical renewable percentage
-func HandlerRenew(request chan caching.CacheRequest, dataset map[string]util.Country, invocation chan []string) func(http.ResponseWriter, *http.Request) {
+func HandlerRenew(cfg *util.Config, request chan caching.CacheRequest, dataset map[string]util.Country, invocation chan []string) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method { // switch for easy expansion
 		case http.MethodGet:
@@ -62,9 +62,9 @@ func HandlerRenew(request chan caching.CacheRequest, dataset map[string]util.Cou
 			// checks if path contains /current/ or /history/, if not error message
 			switch path[0] {
 			case currentPath:
-				handlerCurrent(w, r, strings.ToUpper(path[1]), request, dataset, invocation)
+				handlerCurrent(cfg, w, r, strings.ToUpper(path[1]), request, dataset, invocation)
 			case historyPath:
-				handlerHistorical(w, r, strings.ToUpper(path[1]), dataset, invocation)
+				handlerHistorical(cfg, w, r, strings.ToUpper(path[1]), dataset, invocation)
 			default:
 				http.Error(w, "Not found, only /current/ and /history/ supported", http.StatusNotFound)
 				return
@@ -78,13 +78,14 @@ func HandlerRenew(request chan caching.CacheRequest, dataset map[string]util.Cou
 
 // handlerCurrent handles requests for renewable energy percentage for the current year in one country,
 // with possibility for returning the same information for that country's neighbours
-func handlerCurrent(w http.ResponseWriter, r *http.Request, code string, request chan caching.CacheRequest, dataset map[string]util.Country, invocation chan []string) {
+func handlerCurrent(cfg *util.Config, w http.ResponseWriter, r *http.Request, code string, request chan caching.CacheRequest, dataset map[string]util.Country, invocation chan []string) {
 	var stats []RenewableStatistics
 	if len(sortedYears) == 0 {
 		sortDataset(dataset)
 	}
 	// If the empty string is passed, all countries will be returned
 	// Otherwise, tries to find country matching code in dataset
+	cfg.DatasetLock.Lock()
 	if code == "" {
 		for key, val := range dataset {
 			stats = append(stats, RenewableStatistics{
@@ -104,7 +105,9 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, code string, request
 				sortedYears[code][len(sortedYears[code])-1],
 				dataset[code].YearlyPercentages[sortedYears[code][len(sortedYears[code])-1]]},
 			)
+
 	}
+	cfg.DatasetLock.Unlock()
 	// if no match is found for passed code, or if results are otherwise failed to be found
 	// returns error
 	if len(stats) == 0 {
@@ -150,7 +153,7 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, code string, request
 
 // handlerHistorical Handles requests for the history of renewable energy in one country,
 // on a yearly basis. Has functionality for setting starting and ending year of renewables history
-func handlerHistorical(w http.ResponseWriter, r *http.Request, code string, dataset map[string]util.Country, invocation chan []string) {
+func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request, code string, dataset map[string]util.Country, invocation chan []string) {
 	var stats []RenewableStatistics
 	if len(sortedYears) == 0 {
 		sortDataset(dataset)

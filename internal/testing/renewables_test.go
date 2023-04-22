@@ -94,7 +94,7 @@ func TestRenewables(t *testing.T) {
 		return
 	}
 	// Sets handler to the renewables handler
-	handler := handlers.HandlerRenew(requestChannel, countryDataset, invocation)
+	handler := handlers.HandlerRenew(&config, requestChannel, countryDataset, invocation)
 
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	// URL under which server is instantiated
@@ -116,9 +116,11 @@ func TestRenewables(t *testing.T) {
 				t.Error(err.Error())
 			}
 			defer func(Body io.ReadCloser) {
-				err := Body.Close()
-				if err != nil {
-					log.Fatal(err)
+				if Body != nil {
+					err := Body.Close()
+					if err != nil {
+						log.Fatal(err)
+					}
 				}
 			}(response.Body)
 			decoder := json.NewDecoder(response.Body)

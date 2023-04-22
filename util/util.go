@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"sync"
 
 	// "os"
 	"net"
@@ -32,6 +33,7 @@ type Config struct {
 	CachingCollection string
 	PrimaryCache      string
 	WebhookCollection string
+	DatasetLock       sync.Mutex
 }
 
 // HandlerContext is a container for the name, writer and client object associated with
