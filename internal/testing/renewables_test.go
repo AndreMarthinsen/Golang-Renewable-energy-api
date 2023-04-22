@@ -165,7 +165,7 @@ func TestRenewables(t *testing.T) {
 	}
 
 	// runs a number of concurrent tests equal to testnumber
-	/*wg.Add(concurrentTestNumber)
+	wg.Add(concurrentTestNumber)
 	for i := 0; i < concurrentTestNumber; i++ {
 		randomNumber := rand.Intn(8)
 		go t.Run("/current test for country code "+tests[randomNumber].name+" with neighbour query",
@@ -173,7 +173,7 @@ func TestRenewables(t *testing.T) {
 				server.URL+currentPath+tests[randomNumber].query+neighbourAffix,
 				tests[randomNumber].expected,
 				true))
-	}*/
+	}
 
 	// runs test for all countries in renewables/current/ endpoint
 	//t.Run("All /current countries test", runHandlerTest(&wg, server.URL+currentPath, "ALG", false))
@@ -189,5 +189,5 @@ func TestRenewables(t *testing.T) {
 	}
 
 	// runs test for all countries in renewable/history endpoint
-	//t.Run("All /current countries test", runHandlerTest(&wg, server.URL+historyPath, "ALG", false))
+	t.Run("All /current countries test", runHandlerTest(&wg, server.URL+historyPath, "ALG", false))
 }
