@@ -111,18 +111,22 @@ func TestRenewables(t *testing.T) {
 			}
 			statistics := make([]handlers.RenewableStatistics, 0)
 			request, err := http.NewRequest(http.MethodGet, query, nil)
+			if err != nil {
+				t.Error(err.Error())
+				return
+			}
 			response, err := client.Do(request)
 			if err != nil {
 				t.Error(err.Error())
-			}
-			defer func(Body io.ReadCloser) {
-				if Body != nil {
+				return
+			} else {
+				defer func(Body io.ReadCloser) {
 					err := Body.Close()
 					if err != nil {
 						log.Fatal(err)
 					}
-				}
-			}(response.Body)
+				}(response.Body)
+			}
 			decoder := json.NewDecoder(response.Body)
 			// Error leads to a fail only if failing to decode json as a country struct is unexpected.
 			if err = decoder.Decode(&statistics); err != nil && len(expectedCode) != 0 {
