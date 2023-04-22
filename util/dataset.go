@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"io"
+	"log"
 	"os"
 	"strconv"
 	"sync"
@@ -49,6 +50,7 @@ func (c *CountryDataset) Initialize(path string) error {
 			if _, ok := c.data[cca3]; !ok {
 				c.data[cca3] = Country{Name: countryName, YearlyPercentages: make(map[int]float64)}
 			}
+
 			c.data[cca3].YearlyPercentages[year] = percentage
 		}
 	}
@@ -67,11 +69,11 @@ func (c *CountryDataset) Initialize(path string) error {
 			}
 			percentage += p
 		}
-
-		c.data[cca3] = Country{AveragePercentage: percentage / float64(len(data.YearlyPercentages)),
-			StartYear: startYear,
-			EndYear:   endYear,
-		}
+		temp := c.data[cca3]
+		temp.AveragePercentage = percentage / float64(len(data.YearlyPercentages))
+		temp.StartYear = startYear
+		temp.EndYear = endYear
+		c.data[cca3] = temp
 	}
 	c.mutex.Unlock()
 	return nil
@@ -82,7 +84,9 @@ func (c *CountryDataset) GetStatisticsRange(country string, year int, lastYear i
 	c.mutex.RLock() //TODO: Allow many readers? How?
 	var years []RenewableStatistics
 	for year <= lastYear {
+		log.Println(c.data[country].YearlyPercentages)
 		if percentage, ok := c.data[country].YearlyPercentages[year]; ok {
+			log.Println(percentage)
 			years = append(years, RenewableStatistics{
 				Name:       c.data[country].Name,
 				Isocode:    country,
@@ -118,7 +122,7 @@ func (c *CountryDataset) HasCountryInRecords(country string) bool {
 // GetHistoricStatistics returns a slice of the average statistics of all countries.
 func (c *CountryDataset) GetHistoricStatistics() []RenewableStatistics {
 	c.mutex.RLock()
-	statistics := make([]RenewableStatistics, len(c.data))
+	statistics := make([]RenewableStatistics, 0)
 	for cca3, data := range c.data {
 		statistics = append(statistics, RenewableStatistics{
 			Name:       data.Name,
@@ -151,7 +155,7 @@ func (c *CountryDataset) GetStatistic(country string) (RenewableStatistics, erro
 // for each country
 func (c *CountryDataset) GetStatistics() []RenewableStatistics {
 	c.mutex.RLock()
-	statistics := make([]RenewableStatistics, len(c.data))
+	statistics := make([]RenewableStatistics, 0)
 	for cca3, data := range c.data {
 		statistics = append(statistics, RenewableStatistics{
 			Name:       data.Name,
