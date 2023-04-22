@@ -17,14 +17,12 @@ import (
 	"time"
 )
 
-const dataSetPath = "./internal/assets/renewable-share-energy.csv"
-
 var wg sync.WaitGroup
 
 func main() {
 	defer wg.Wait()
 
-	dataset, err := util.InitializeDataset(dataSetPath)
+	countryDataset, err := util.InitializeDataset(consts.DataSetPath)
 	if err != nil {
 		// TODO: log an internal server error instead
 		log.Print(err)
@@ -61,12 +59,19 @@ func main() {
 		WebhookCollection: "Webhooks",
 	}
 
+	// Stub server setup
 	stubStop := make(chan struct{})
 	if config.DevelopmentMode {
 		wg.Add(1)
 		go stubbing.RunSTUBServer(&config, &wg, consts.StubPort, stubStop)
 	}
 
+	// Invocation worker setup
+	invocation := make(chan []string, 10)
+	invocationStop := make(chan struct{})
+	go caching.InvocationWorker(&config, invocationStop, countryDataset, invocation)
+
+	// Cache worker setup
 	requestChannel := make(chan caching.CacheRequest, 10)
 	stopSignal := make(chan struct{})
 	doneSignal := make(chan struct{})
@@ -80,7 +85,7 @@ func main() {
 	notificationHandler := notifications.HandlerNotification(&config)
 	statusHandler := handlers.HandlerStatus(&config)
 
-	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(requestChannel, dataset))
+	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(requestChannel, countryDataset, invocation))
 	http.HandleFunc(consts.NotificationPath, notificationHandler)
 	http.HandleFunc(consts.StatusPath, statusHandler)
 

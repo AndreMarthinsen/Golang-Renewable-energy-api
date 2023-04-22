@@ -24,6 +24,7 @@ import (
 type Config struct {
 	CachePushRate     time.Duration // Cache is pushed to external DB with CachePushRate as its interval
 	CacheTimeLimit    time.Duration // Cache entries older than CacheTimeLimit are purged upon loading
+	WebhookEventRate  time.Duration // How often registered webhooks should be checked for event triggers
 	DebugMode         bool          // toggles any extra debug features such as extra logging of events
 	DevelopmentMode   bool          // Sets the service to use stubbing of external APIs
 	Ctx               *context.Context

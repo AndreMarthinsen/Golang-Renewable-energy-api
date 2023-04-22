@@ -32,30 +32,35 @@ func InvocationWorker(cfg *util.Config, stop chan struct{}, countryDB map[string
 	for {
 		select {
 		case <-time.After(time.Second * 1): // TODO: Config setting
-			updatedCountries := getUpdatedCountries(invocationMap)
-
-			ref := cfg.FirestoreClient.Collection(cfg.WebhookCollection)
-			query := ref.Where("country", "in", updatedCountries)
-			iter := query.Documents(*cfg.Ctx)
-
-			bulkOperation := cfg.FirestoreClient.BulkWriter(*cfg.Ctx)
-
-			err, webhooksToCheck := getDocumentsToUpdate(iter, bulkOperation, invocationMap)
-			if err != nil {
-				log.Println("invocation worker:", err)
-			}
-			// Iterates through relevant webhooks and
-			for i, webhook := range webhooksToCheck {
-				if err := doWebhookEvents(&client, webhook, countryDB, invocationMap); err != nil {
-					log.Println("invocation worker: ", err)
-				} else {
-					webhooksToCheck[i].Body.Count = invocationMap[webhook.Body.Country] + webhook.Body.Count
+			if len(invocationMap) != 0 {
+				log.Println("handling invocations for")
+				for code := range invocationMap {
+					log.Println(code)
 				}
+				updatedCountries := getUpdatedCountries(invocationMap)
+
+				ref := cfg.FirestoreClient.Collection(cfg.WebhookCollection)
+				query := ref.Where("country", "in", updatedCountries)
+				iter := query.Documents(*cfg.Ctx)
+
+				bulkOperation := cfg.FirestoreClient.BulkWriter(*cfg.Ctx)
+
+				err, webhooksToCheck := getDocumentsToUpdate(iter, bulkOperation, invocationMap)
+				if err != nil {
+					log.Println("invocation worker:", err)
+				}
+				// Iterates through relevant webhooks and
+				for i, webhook := range webhooksToCheck {
+					if err := doWebhookEvents(&client, webhook, countryDB, invocationMap); err != nil {
+						log.Println("invocation worker: ", err)
+					} else {
+						webhooksToCheck[i].Body.Count = invocationMap[webhook.Body.Country] + webhook.Body.Count
+					}
+				}
+
+				bulkOperation.End()                // Executes write operations
+				invocationMap = map[string]int32{} // reset of counters
 			}
-
-			bulkOperation.End()                // Executes write operations
-			invocationMap = map[string]int32{} // reset of counters
-
 		case invocations, ok := <-invocationChannel:
 			if ok != true {
 				// TODO: Shut down due to channel connection loss
@@ -73,7 +78,6 @@ func InvocationWorker(cfg *util.Config, stop chan struct{}, countryDB map[string
 }
 
 // getUpdatedCountries retrieves a list of all countries that have been updated
-// TODO: Probably pointless due to the reset per cycle
 func getUpdatedCountries(invocations map[string]int32) []string {
 	updatedCountries := make([]string, 0)
 	for cca3 := range invocations {

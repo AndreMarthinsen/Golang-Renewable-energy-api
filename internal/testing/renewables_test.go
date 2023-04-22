@@ -78,8 +78,23 @@ func TestRenewables(t *testing.T) {
 		<-doneSignal
 	}()
 
+	// TODO: dummy invocation channel here.
+	// Invocation worker setup
+	invocationStop := make(chan struct{})
+	defer func() {
+		invocationStop <- struct{}{}
+	}()
+	invocation := make(chan []string, 10)
+	countryDataset, err := util.InitializeDataset(consts.DataSetPath)
+	go caching.InvocationWorker(&config, invocationStop, countryDataset, invocation)
+
+	if err != nil {
+		// TODO: log an internal server error instead
+		log.Print(err)
+		return
+	}
 	// Sets handler to the renewables handler
-	handler := handlers.HandlerRenew(requestChannel, &config)
+	handler := handlers.HandlerRenew(requestChannel, countryDataset, invocation)
 
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	// URL under which server is instantiated
