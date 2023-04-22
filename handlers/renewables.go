@@ -114,12 +114,15 @@ func handlerCurrent(cfg *util.Config, w http.ResponseWriter, r *http.Request, co
 				//TODO: invocation is put here for testing. Unsure of proper placement.
 				invocation <- result.Neighbours[code]
 				for _, val := range result.Neighbours[code] {
-					stats = append(stats, RenewableStatistics{
-						dataset[val].Name,
-						val,
-						sortedYears[val][len(sortedYears[val])-1],
-						dataset[val].YearlyPercentages[sortedYears[val][len(sortedYears[val])-1]]},
-					)
+					// checks if a neighbouring country is in dataset
+					if _, ok := dataset[val]; ok {
+						stats = append(stats, RenewableStatistics{
+							dataset[val].Name,
+							val,
+							sortedYears[val][len(sortedYears[val])-1],
+							dataset[val].YearlyPercentages[sortedYears[val][len(sortedYears[val])-1]]},
+						)
+					}
 				}
 			}
 		}

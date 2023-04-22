@@ -183,7 +183,7 @@ func TestRenewables(t *testing.T) {
 		randomNumber := rand.Intn(8)
 		t.Run("/history test for country code "+tests[randomNumber].name,
 			runHandlerTest(&wg,
-				server.URL+historyPath+tests[randomNumber].query+neighbourAffix,
+				server.URL+historyPath+tests[randomNumber].query,
 				tests[randomNumber].expected,
 				false))
 	}
