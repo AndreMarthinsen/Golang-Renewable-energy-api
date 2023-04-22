@@ -145,9 +145,9 @@ func doWebhookEvents(cfg *util.Config, client *http.Client, webhook webhookCheck
 			if err != nil {
 				return err
 			}
-			response, err := client.Do(request)
+			_, err = client.Do(request)
 			if err != nil {
-				return errors.New(err.Error() + " : status: " + response.Status)
+				return errors.New(err.Error())
 			}
 		}
 	}
