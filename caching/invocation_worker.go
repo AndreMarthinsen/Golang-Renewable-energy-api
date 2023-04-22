@@ -22,7 +22,7 @@ type webhookCheck struct {
 // an in memory data structure mapping country code to invocation count.
 // Registered webhooks are periodically checked in DB to see if they should
 // trigger, and if so, a message is sent to the registered url.
-func InvocationWorker(cfg *util.Config, stop chan struct{}, countryDB map[string]util.Country, invocationChannel chan []string) {
+func InvocationWorker(cfg *util.Config, stop chan struct{}, countryDB *util.CountryDataset, invocationChannel chan []string) {
 
 	// maps cca3 codes to the invocation count for a current cycle.
 	invocationMap := make(map[string]int32, 0)
@@ -115,7 +115,7 @@ func getDocumentsToUpdate(iter *firestore.DocumentIterator, bulkOperation *fires
 }
 
 func doWebhookEvents(cfg *util.Config, client *http.Client, webhook webhookCheck,
-	countryDB map[string]util.Country, invocations map[string]int32) error {
+	countryDB *util.CountryDataset, invocations map[string]int32) error {
 
 	oldCount := webhook.Body.Count
 	newCount := invocations[webhook.Body.Country] + oldCount
@@ -123,14 +123,9 @@ func doWebhookEvents(cfg *util.Config, client *http.Client, webhook webhookCheck
 	triggers := newCount/webhook.Body.Calls - previousTriggers
 	if triggers != 0 {
 		for j := 0; int32(j) < triggers; j++ {
-			cfg.DatasetLock.Lock()
-			country, ok := countryDB[webhook.Body.Country]
-			cfg.DatasetLock.Unlock()
-			var countryName string
-			if ok {
-				countryName = country.Name
-			} else {
-				return errors.New("invocation worker: cca3 -> full name not found in local DB")
+			countryName, err := countryDB.GetFullName(webhook.Body.Country)
+			if err != nil {
+				log.Println("webhook worker: ", err)
 			}
 			message := notifications.WebhookTrigger{
 				WebhookId:  webhook.ID,

@@ -21,14 +21,13 @@ var wg sync.WaitGroup
 
 func main() {
 	defer wg.Wait()
-
-	countryDataset, err := util.InitializeDataset(consts.DataSetPath)
+	var countryDataset util.CountryDataset
+	err := countryDataset.Initialize(consts.DataSetPath)
 	if err != nil {
 		// TODO: log an internal server error instead
 		log.Fatal(err)
 		return
 	}
-	sortedYears := util.SortDataset(countryDataset)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -70,7 +69,7 @@ func main() {
 	// Invocation worker setup
 	invocation := make(chan []string, 10)
 	invocationStop := make(chan struct{})
-	go caching.InvocationWorker(&config, invocationStop, countryDataset, invocation)
+	go caching.InvocationWorker(&config, invocationStop, &countryDataset, invocation)
 
 	// Cache worker setup
 	requestChannel := make(chan caching.CacheRequest, 10)
@@ -86,7 +85,7 @@ func main() {
 	notificationHandler := notifications.HandlerNotification(&config)
 	statusHandler := handlers.HandlerStatus(&config)
 
-	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(&config, requestChannel, countryDataset, invocation, sortedYears))
+	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(&config, requestChannel, &countryDataset, invocation))
 	http.HandleFunc(consts.NotificationPath, notificationHandler)
 	http.HandleFunc(consts.StatusPath, statusHandler)
 

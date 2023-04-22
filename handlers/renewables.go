@@ -14,17 +14,9 @@ import (
 const currentPath = "current"
 const historyPath = "history"
 
-// RenewableStatistics struct that encapsulates information that will be returned for a successful request
-type RenewableStatistics struct {
-	Name       string  `json:"name"`
-	Isocode    string  `json:"isocode"`
-	Year       int     `json:"year,omitempty"` // if empty, will not be encoded in the response
-	Percentage float64 `json:"percentage"`
-}
-
 // HandlerRenew Handler for the renewables endpoint: this checks if the request is GET, and calls the correct function
 // for current renewable percentage or historical renewable percentage
-func HandlerRenew(cfg *util.Config, request chan caching.CacheRequest, dataset map[string]util.Country, invocation chan []string, sortedYears map[string][]int) func(http.ResponseWriter, *http.Request) {
+func HandlerRenew(cfg *util.Config, request chan caching.CacheRequest, dataset *util.CountryDataset, invocation chan []string) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method { // switch for easy expansion
 		case http.MethodGet:
@@ -40,9 +32,9 @@ func HandlerRenew(cfg *util.Config, request chan caching.CacheRequest, dataset m
 			// checks if path contains /current/ or /history/, if not error message
 			switch path[0] {
 			case currentPath:
-				handlerCurrent(cfg, w, r, strings.ToUpper(path[1]), request, dataset, invocation, sortedYears)
+				handlerCurrent(cfg, w, r, strings.ToUpper(path[1]), request, dataset, invocation)
 			case historyPath:
-				handlerHistorical(cfg, w, r, strings.ToUpper(path[1]), dataset, invocation, sortedYears)
+				handlerHistorical(cfg, w, r, strings.ToUpper(path[1]), dataset, invocation)
 			default:
 				http.Error(w, "Not found, only /current/ and /history/ supported", http.StatusNotFound)
 				return
@@ -56,46 +48,32 @@ func HandlerRenew(cfg *util.Config, request chan caching.CacheRequest, dataset m
 
 // handlerCurrent handles requests for renewable energy percentage for the current year in one country,
 // with possibility for returning the same information for that country's neighbours
-func handlerCurrent(cfg *util.Config, w http.ResponseWriter, r *http.Request, code string, request chan caching.CacheRequest, dataset map[string]util.Country, invocation chan []string, sortedYears map[string][]int) {
-	var stats []RenewableStatistics
+func handlerCurrent(cfg *util.Config, w http.ResponseWriter, r *http.Request, code string, request chan caching.CacheRequest, dataset *util.CountryDataset, invocation chan []string) {
+	var stats []util.RenewableStatistics
 	// If the empty string is passed, all countries will be returned
 	// Otherwise, tries to find country matching code in dataset
-	cfg.DatasetLock.Lock()
+
 	if code == "" {
-		for key, val := range dataset {
-			stats = append(stats, RenewableStatistics{
-				val.Name,
-				key,
-				// Sets the year, i.e. the current year, to be the last year for which we have data in the dataset
-				sortedYears[key][len(sortedYears[key])-1],
-				val.YearlyPercentages[sortedYears[key][len(sortedYears[key])-1]],
-			})
-		}
+		stats = dataset.GetStatistics()
 	} else {
-		if _, ok := dataset[code]; !ok {
-			http.Error(w, "Code mispelled or country not in dataset", http.StatusNotFound)
+		statistic, err := dataset.GetStatistic(code)
+		if err != nil {
+			http.Error(w, "Code misspelled or country not in dataset", http.StatusNotFound)
 			return
 		}
 		//TODO: invocation is put here for testing. Unsure of proper placement.
 		invocation <- []string{code}
-		stats =
-			append(stats, RenewableStatistics{
-				dataset[code].Name,
-				code,
-				// Sets the year, i.e. the current year, to be the last year for which we have data in the dataset
-				sortedYears[code][len(sortedYears[code])-1],
-				dataset[code].YearlyPercentages[sortedYears[code][len(sortedYears[code])-1]]},
-			)
 
+		stats = append(stats, statistic)
 	}
-	cfg.DatasetLock.Unlock()
+
 	// if no match is found for passed code, or if results are otherwise failed to be found
 	// returns error
 	if len(stats) == 0 {
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
-
 	}
+
 	// If a neighbours query has been, attempts to parse into bool
 	// TODO: Move query-parsing into own function
 	if r.URL.RawQuery != "" {
@@ -110,18 +88,13 @@ func handlerCurrent(cfg *util.Config, w http.ResponseWriter, r *http.Request, co
 			request <- caching.CacheRequest{ChannelRef: ret, CountryRequest: []string{code}}
 			result := <-ret
 			// if the request doesn't return not found, it will find those neighbours
-			if result.Status != 404 {
+			if result.Status != http.StatusNotFound {
 				//TODO: invocation is put here for testing. Unsure of proper placement.
 				invocation <- result.Neighbours[code]
-				for _, val := range result.Neighbours[code] {
-					// checks if a neighbouring country is in dataset
-					if _, ok := dataset[val]; ok {
-						stats = append(stats, RenewableStatistics{
-							dataset[val].Name,
-							val,
-							sortedYears[val][len(sortedYears[val])-1],
-							dataset[val].YearlyPercentages[sortedYears[val][len(sortedYears[val])-1]]},
-						)
+				for _, neighbour := range result.Neighbours[code] {
+					statistic, err := dataset.GetStatistic(neighbour)
+					if err == nil {
+						stats = append(stats, statistic)
 					}
 				}
 			}
@@ -139,34 +112,21 @@ func handlerCurrent(cfg *util.Config, w http.ResponseWriter, r *http.Request, co
 
 // handlerHistorical Handles requests for the history of renewable energy in one country,
 // on a yearly basis. Has functionality for setting starting and ending year of renewables history
-func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request, code string, dataset map[string]util.Country, invocation chan []string, sortedYears map[string][]int) {
-	var stats []RenewableStatistics
+func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request, code string, dataset *util.CountryDataset, invocation chan []string) {
+	var stats []util.RenewableStatistics
 	// if no code is provided, a list of every country's average renewable percentage is returned
 	if code == "" {
-		for key, val := range dataset {
-			// sets up a statistic for each country in the dataset
-			statistic := RenewableStatistics{Name: val.Name, Isocode: key, Year: 0}
-			percentage := 0.0
-			yearSpan := 0.0
-			//calculates the average renewable percentage by iterating over that country's map of year to percentage pairs
-			for _, year := range sortedYears[key] {
-				percentage += dataset[key].YearlyPercentages[year]
-				yearSpan++
-			}
-			percentage /= yearSpan
-			statistic.Percentage = percentage
-			stats = append(stats, statistic)
-		}
+		stats = dataset.GetHistoricStatistics()
 	} else {
-		if _, ok := dataset[code]; !ok {
+		if !dataset.HasCountryInRecords(code) {
 			http.Error(w, "Code mispelled or country not in dataset", http.StatusNotFound)
 			return
 		}
 		//TODO: invocation is put here for testing. Unsure of proper placement.
 		invocation <- []string{code}
 		// set start and end to match first and last year in dataset
-		start := sortedYears[code][0]
-		end := sortedYears[code][len(sortedYears[code])-1]
+		start := dataset.GetFirstYear(code)
+		end := dataset.GetLastYear(code)
 		// The following checks if there is a URL query, if its correctly formatted, and if
 		// it is, it sets the bounds of the beginning and end of the country's energy history
 		// TODO: put query-handling in its own function
@@ -185,24 +145,21 @@ func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request,
 			if start > end {
 				http.Error(w, "Bad request, begin must be smaller than end", http.StatusBadRequest)
 			}
-			if start < sortedYears[code][0] {
-				start = sortedYears[code][0]
+			if start < dataset.GetFirstYear(code) {
+				start = dataset.GetFirstYear(code)
 			}
 			// If end has been set as higher than the last year in the dataset,
 			// it is instead set to the last year
 			// TODO: consider setting this as as bad request error instead
-			if end > sortedYears[code][len(sortedYears[code])-1] {
-				end = sortedYears[code][len(sortedYears[code])-1]
+			if end > dataset.GetLastYear(code) {
+				end = dataset.GetLastYear(code)
 			}
 		}
-		country := RenewableStatistics{Name: dataset[code].Name, Isocode: code}
+
 		// Adds yearly percentages for span from start to end
 		// if not set by user, it will be from the first to the last year in the dataset
-		for i := start; i <= end && i <= sortedYears[code][len(sortedYears[code])-1]; i++ {
-			country.Year = i
-			country.Percentage = dataset[code].YearlyPercentages[i]
-			stats = append(stats, country)
-		}
+		stats = dataset.GetStatisticsRange(code, start, end)
+
 	}
 	if len(stats) == 0 {
 		http.Error(w, "Not found", http.StatusNotFound)

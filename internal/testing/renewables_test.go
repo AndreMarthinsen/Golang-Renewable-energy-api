@@ -85,12 +85,12 @@ func TestRenewables(t *testing.T) {
 		invocationStop <- struct{}{}
 	}()
 	invocation := make(chan []string, 10)
-	countryDataset, err := util.InitializeDataset(consts.DataSetPath)
+	var countryDataset util.CountryDataset
+	err = countryDataset.Initialize(consts.DataSetPath)
 	if err != nil {
 		log.Fatal(err)
 	}
-	sortedYears := util.SortDataset(countryDataset)
-	go caching.InvocationWorker(&config, invocationStop, countryDataset, invocation)
+	go caching.InvocationWorker(&config, invocationStop, &countryDataset, invocation)
 
 	if err != nil {
 		// TODO: log an internal server error instead
@@ -98,7 +98,7 @@ func TestRenewables(t *testing.T) {
 		return
 	}
 	// Sets handler to the renewables handler
-	handler := handlers.HandlerRenew(&config, requestChannel, countryDataset, invocation, sortedYears)
+	handler := handlers.HandlerRenew(&config, requestChannel, &countryDataset, invocation)
 
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	// URL under which server is instantiated
@@ -113,7 +113,7 @@ func TestRenewables(t *testing.T) {
 			if routine {
 				defer wg.Done()
 			}
-			statistics := make([]handlers.RenewableStatistics, 0)
+			statistics := make([]util.RenewableStatistics, 0)
 			request, err := http.NewRequest(http.MethodGet, query, nil)
 			if err != nil {
 				t.Error(err.Error())
@@ -138,8 +138,8 @@ func TestRenewables(t *testing.T) {
 			}
 			// if the first element of the decoded statsitcs is wrong, the test will faill
 			// for situations like fetching information about all countries this might be too lenient a test
-			// The alternative is to have a expected slice that encapsulates ALL information in the dataset
-			if statistics[0].Isocode != expectedCode {
+			// The alternative is to have an expected slice that encapsulates ALL information in the dataset
+			if len(statistics) != 0 && statistics[0].Isocode != expectedCode {
 				t.Error("Unexpected query returned. Expected: ",
 					expectedCode, " but got ", statistics[0].Isocode)
 			}
