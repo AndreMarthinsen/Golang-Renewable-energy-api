@@ -85,7 +85,7 @@ func main() {
 	notificationHandler := notifications.HandlerNotification(&config)
 	statusHandler := handlers.HandlerStatus(&config)
 
-	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(requestChannel, countryDataset, invocation))
+	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(&config, requestChannel, countryDataset, invocation))
 	http.HandleFunc(consts.NotificationPath, notificationHandler)
 	http.HandleFunc(consts.StatusPath, statusHandler)
 
