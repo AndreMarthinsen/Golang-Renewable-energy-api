@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
 
@@ -183,4 +184,16 @@ func ReadCSV(path string) *csv.Reader {
 	nr := csv.NewReader(f)
 
 	return nr
+}
+
+func SortDataset(dataset map[string]Country) map[string][]int {
+	sortedYears := make(map[string][]int)
+	for key, val := range dataset {
+		sortedYears[key] = make([]int, 0)
+		for year := range val.YearlyPercentages {
+			sortedYears[key] = append(sortedYears[key], year)
+		}
+		sort.Ints(sortedYears[key])
+	}
+	return sortedYears
 }

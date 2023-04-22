@@ -25,9 +25,10 @@ func main() {
 	countryDataset, err := util.InitializeDataset(consts.DataSetPath)
 	if err != nil {
 		// TODO: log an internal server error instead
-		log.Print(err)
+		log.Fatal(err)
 		return
 	}
+	sortedYears := util.SortDataset(countryDataset)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -85,7 +86,7 @@ func main() {
 	notificationHandler := notifications.HandlerNotification(&config)
 	statusHandler := handlers.HandlerStatus(&config)
 
-	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(&config, requestChannel, countryDataset, invocation))
+	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(&config, requestChannel, countryDataset, invocation, sortedYears))
 	http.HandleFunc(consts.NotificationPath, notificationHandler)
 	http.HandleFunc(consts.StatusPath, statusHandler)
 
