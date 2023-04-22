@@ -57,12 +57,13 @@ func (c *CountryDataset) Initialize(path string) error {
 		startYear := 3000
 		endYear := 0
 		var percentage float64
+
 		for year, p := range data.YearlyPercentages {
 			if year < startYear {
-				year = startYear
+				startYear = year
 			}
 			if year > endYear {
-				year = endYear
+				endYear = year
 			}
 			percentage += p
 		}
