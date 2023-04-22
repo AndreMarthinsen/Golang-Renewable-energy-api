@@ -80,8 +80,11 @@ func HandlerRenew(cfg *util.Config, request chan caching.CacheRequest, dataset m
 // with possibility for returning the same information for that country's neighbours
 func handlerCurrent(cfg *util.Config, w http.ResponseWriter, r *http.Request, code string, request chan caching.CacheRequest, dataset map[string]util.Country, invocation chan []string) {
 	var stats []RenewableStatistics
+
 	if len(sortedYears) == 0 {
+		cfg.DatasetLock.Lock()
 		sortDataset(dataset)
+		cfg.DatasetLock.Unlock()
 	}
 	// If the empty string is passed, all countries will be returned
 	// Otherwise, tries to find country matching code in dataset
@@ -97,6 +100,8 @@ func handlerCurrent(cfg *util.Config, w http.ResponseWriter, r *http.Request, co
 			})
 		}
 	} else {
+		//TODO: invocation is put here for testing. Unsure of proper placement.
+		invocation <- []string{code}
 		stats =
 			append(stats, RenewableStatistics{
 				dataset[code].Name,
