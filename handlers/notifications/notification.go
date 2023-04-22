@@ -51,7 +51,7 @@ func HandlerNotification(cfg *util.Config) func(w http.ResponseWriter, r *http.R
 //	}
 func registerWebhook(handler *util.HandlerContext, cfg *util.Config, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
-	webhook := Webhook{}
+	webhook := WebhookRegistration{}
 	if err := decoder.Decode(&webhook); err != nil {
 		errorMsg :=
 			"Malformed request body. Expected json format is:\n\n" +
