@@ -4,7 +4,6 @@ import (
 	"encoding/csv"
 	"errors"
 	"io"
-	"log"
 	"os"
 	"strconv"
 	"sync"
@@ -84,9 +83,7 @@ func (c *CountryDataset) GetStatisticsRange(country string, year int, lastYear i
 	c.mutex.RLock() //TODO: Allow many readers? How?
 	var years []RenewableStatistics
 	for year <= lastYear {
-		log.Println(c.data[country].YearlyPercentages)
 		if percentage, ok := c.data[country].YearlyPercentages[year]; ok {
-			log.Println(percentage)
 			years = append(years, RenewableStatistics{
 				Name:       c.data[country].Name,
 				Isocode:    country,
