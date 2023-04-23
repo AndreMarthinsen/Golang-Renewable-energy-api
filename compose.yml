@@ -1,0 +1,19 @@
+services:
+  #name of service (in Docker context):
+  renewables:
+    # build based on "Dockerfile" in current dir:
+    build: .
+    # mount volumes located in VM on container(s):
+    volumes:
+      # credentials:
+      - ./.secret:/credentials:ro
+      # data set:
+      - ./data:/data:ro    
+    # env variables to access the shared files:
+    environment:
+      - FIREBASE_CONFIG=${configFile}
+      - ENERGY_DATASET=${dataSet}
+    # port mapping (remote:local)
+    ports:
+      - '10000:8080'
+
