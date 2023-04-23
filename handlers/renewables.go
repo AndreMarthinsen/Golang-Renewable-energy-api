@@ -56,6 +56,17 @@ func handlerCurrent(cfg *util.Config, w http.ResponseWriter, r *http.Request, co
 	if code == "" {
 		stats = dataset.GetStatistics()
 	} else {
+		// if code is longer than 3 characters it is treated as a name
+		// if that name can be found in the dataset, the code variable is set to that country's cc3a code
+		if len(code) > 3 {
+			code = strings.ReplaceAll(code, "%20", " ")
+			var err error
+			code, err = dataset.GetCountryByName(code)
+			if err != nil {
+				http.Error(w, "404 not found", http.StatusNotFound)
+				return
+			}
+		}
 		statistic, err := dataset.GetStatistic(code)
 		if err != nil {
 			http.Error(w, "Code misspelled or country not in dataset", http.StatusNotFound)

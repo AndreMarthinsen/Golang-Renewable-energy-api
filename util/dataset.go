@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -103,6 +104,17 @@ func (c *CountryDataset) GetFullName(cca3 string) (string, error) {
 	if ok {
 		c.mutex.RUnlock()
 		return entry.Name, nil
+	}
+	c.mutex.RUnlock()
+	return "", errors.New("no such entry in dataset")
+}
+
+func (c *CountryDataset) GetCountryByName(name string) (string, error) {
+	c.mutex.RLock()
+	for key, val := range c.data {
+		if strings.ToUpper(name) == strings.ToUpper(val.Name) {
+			return key, nil
+		}
 	}
 	c.mutex.RUnlock()
 	return "", errors.New("no such entry in dataset")
