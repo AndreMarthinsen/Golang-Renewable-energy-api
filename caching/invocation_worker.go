@@ -139,7 +139,7 @@ func doWebhookEvents(cfg *util.Config, client *http.Client, webhook webhookCheck
 			message := notifications.WebhookTrigger{
 				WebhookId:  webhook.ID,
 				Country:    countryName,
-				TotalCalls: previousTriggers + int32(j)*webhook.Body.Calls,
+				TotalCalls: previousTriggers + int32(j+1)*webhook.Body.Calls,
 			}
 			payload, err := json.Marshal(message)
 			if err != nil {
