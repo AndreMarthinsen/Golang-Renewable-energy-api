@@ -77,14 +77,12 @@ func handlerCurrent(cfg *util.Config, w http.ResponseWriter, r *http.Request, co
 
 		stats = append(stats, statistic)
 	}
-
 	// if no match is found for passed code, or if results are otherwise failed to be found
 	// returns error
 	if len(stats) == 0 {
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
 	}
-
 	// If a neighbours query has been, attempts to parse into bool
 	// TODO: Move query-parsing into own function
 	if r.URL.RawQuery != "" {
@@ -129,14 +127,22 @@ func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request,
 	if code == "" {
 		stats = dataset.GetHistoricStatistics()
 	} else {
-		if !dataset.HasCountryInRecords(code) {
+		if len(code) > 3 {
+			code = strings.ReplaceAll(code, "%20", " ")
+			var err error
+			code, err = dataset.GetCountryByName(code)
+			if err != nil {
+				http.Error(w, "404 not found", http.StatusNotFound)
+				return
+			}
+		} else if !dataset.HasCountryInRecords(code) {
 			http.Error(w, "Code mispelled or country not in dataset", http.StatusNotFound)
 			return
 		}
 		//TODO: invocation is put here for testing. Unsure of proper placement.
 		invocation <- []string{code}
-		// set start and end to match first and last year in dataset
-		start := dataset.GetFirstYear(code)
+		// set begin and end to match first and last year in dataset
+		begin := dataset.GetFirstYear(code)
 		end := dataset.GetLastYear(code)
 		// The following checks if there is a URL query, if its correctly formatted, and if
 		// it is, it sets the bounds of the beginning and end of the country's energy history
@@ -144,20 +150,24 @@ func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request,
 		if r.URL.RawQuery != "" {
 			var err error
 			query := r.URL.Query()
-			start, err = strconv.Atoi(query.Get("begin"))
-			if err != nil {
-				http.Error(w, "Bad request", http.StatusBadRequest)
+			if strings.Contains(r.URL.RawQuery, "begin") {
+				begin, err = strconv.Atoi(query.Get("begin"))
+				if err != nil {
+					http.Error(w, "Bad request", http.StatusBadRequest)
+				}
 			}
-			end, err = strconv.Atoi(query.Get("end"))
-			if err != nil {
-				http.Error(w, "Bad request", http.StatusBadRequest)
+			if strings.Contains(r.URL.RawQuery, "end") {
+				end, err = strconv.Atoi(query.Get("end"))
+				if err != nil {
+					http.Error(w, "Bad request", http.StatusBadRequest)
+				}
 			}
-			// Sends error if end year has been set to higher than start year
-			if start > end {
+			// Sends error if end year has been set to higher than begin year
+			if begin > end {
 				http.Error(w, "Bad request, begin must be smaller than end", http.StatusBadRequest)
 			}
-			if start < dataset.GetFirstYear(code) {
-				start = dataset.GetFirstYear(code)
+			if begin < dataset.GetFirstYear(code) {
+				begin = dataset.GetFirstYear(code)
 			}
 			// If end has been set as higher than the last year in the dataset,
 			// it is instead set to the last year
@@ -166,11 +176,10 @@ func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request,
 				end = dataset.GetLastYear(code)
 			}
 		}
-
-		// Adds yearly percentages for span from start to end
+		// Adds yearly percentages for span from begin to end
 		// if not set by user, it will be from the first to the last year in the dataset
-		stats = dataset.GetStatisticsRange(code, start, end)
-
+		//stats = dataset.GetStatisticsRange(code, begin, end)
+		stats = append(stats, dataset.CalculatePercentage(code, begin, end))
 	}
 	if len(stats) == 0 {
 		http.Error(w, "Not found", http.StatusNotFound)

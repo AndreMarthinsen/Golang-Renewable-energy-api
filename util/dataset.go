@@ -221,3 +221,20 @@ func (c *CountryDataset) GetPercentage(country string, year int) (error, float64
 	c.mutex.RUnlock()
 	return errors.New("year not on record"), 0.0
 }
+
+func (c *CountryDataset) CalculatePercentage(country string, startYear int, endYear int) RenewableStatistics {
+	c.mutex.Lock()
+	var percentage float64
+	var yearSpan float64
+	for i := startYear; i <= endYear; i++ {
+		percentage += c.data[country].YearlyPercentages[i]
+		yearSpan++
+	}
+	percentage /= yearSpan
+
+	c.mutex.Unlock()
+	return RenewableStatistics{
+		Name:       c.data[country].Name,
+		Isocode:    country,
+		Percentage: percentage}
+}
