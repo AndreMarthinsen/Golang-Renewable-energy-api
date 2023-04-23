@@ -173,15 +173,3 @@ func viewWebhooks(handler *util.HandlerContext, cfg *util.Config, r *http.Reques
 		util.EncodeAndWriteResponse(handler.Writer, entries)
 	}
 }
-
-// webhookTrigger triggers whenever x amount of invocations on
-// a registered webhook country as occurred.
-//
-//	{
-//	   "webhook_id": "OIdksUDwveiwe",
-//	   "country": "Norway",
-//	   "calls": 10      <-- Should be some multiple of registered call frequency, i.e. 2*5 in this case.
-//	}
-func webhookTrigger(context *util.HandlerContext, cfg *util.Config, w http.ResponseWriter, r *http.Request) {
-
-}
