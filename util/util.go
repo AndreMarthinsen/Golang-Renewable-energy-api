@@ -7,6 +7,7 @@ import (
 	"cloud.google.com/go/firestore"
 	"context"
 	"encoding/json"
+	"golang.org/x/exp/constraints"
 	"io"
 	"log"
 	// "os"
@@ -15,6 +16,22 @@ import (
 	"strings"
 	"time"
 )
+
+// Max returns the largest value
+func Max[K constraints.Ordered](val K, val2 K) K {
+	if val > val2 {
+		return val
+	}
+	return val2
+}
+
+// Min returns the smallest value
+func Min[K constraints.Ordered](val K, val2 K) K {
+	if val > val2 {
+		return val2
+	}
+	return val
+}
 
 // Config contains project config.
 type Config struct {

@@ -76,7 +76,7 @@ func RunCacheWorker(cfg *util.Config, requests chan CacheRequest, stop <-chan st
 			}
 			if len(misses) == 0 {
 				if cfg.DebugMode {
-					log.Println("returning response")
+					log.Println("cache worker dbg: returning response")
 				}
 				val.ChannelRef <- response
 			} else { // Some misses, will be handled when default case occurs

@@ -31,34 +31,43 @@ func InvocationWorker(cfg *util.Config, stop chan struct{}, countryDB *util.Coun
 
 	for {
 		select {
-		case <-time.After(time.Second * 1): // TODO: Config setting
+		case <-time.After(time.Second * 10): // TODO: Config setting
+			startTime := time.Now()
 			if len(invocationMap) != 0 {
-				log.Println("handling invocations for")
-				for code := range invocationMap {
-					log.Println(code)
-				}
-				updatedCountries := getUpdatedCountries(invocationMap)
-
-				ref := cfg.FirestoreClient.Collection(cfg.WebhookCollection)
-				query := ref.Where("country", "in", updatedCountries)
-				iter := query.Documents(*cfg.Ctx)
-
-				bulkOperation := cfg.FirestoreClient.BulkWriter(*cfg.Ctx)
-
-				err, webhooksToCheck := getDocumentsToUpdate(iter, bulkOperation, invocationMap)
-				if err != nil {
-					log.Println("invocation worker:", err)
-				}
-				// Iterates through relevant webhooks and
-				for i, webhook := range webhooksToCheck {
-					if err := doWebhookEvents(cfg, &client, webhook, countryDB, invocationMap); err != nil {
-						log.Println("invocation worker: ", err)
-					} else {
-						webhooksToCheck[i].Body.Count = invocationMap[webhook.Body.Country] + webhook.Body.Count
+				if cfg.DebugMode {
+					log.Println("handling invocations for ", len(invocationMap), " invocations")
+					for code := range invocationMap {
+						log.Println(code)
 					}
 				}
+				updatedCountries := getUpdatedCountries(invocationMap)
+				maxInSize := 30
+				chunks := (len(updatedCountries) / maxInSize) + 1
+				for i := 0; i < chunks; i++ {
+					ref := cfg.FirestoreClient.Collection(cfg.WebhookCollection)
+					query := ref.Where("country", "in",
+						updatedCountries[i*maxInSize:util.Min((i+1)*maxInSize, len(invocationMap))],
+					)
+					iter := query.Documents(*cfg.Ctx)
 
-				bulkOperation.End()                // Executes write operations
+					bulkOperation := cfg.FirestoreClient.BulkWriter(*cfg.Ctx)
+
+					err, webhooksToCheck := getDocumentsToUpdate(iter, bulkOperation, invocationMap)
+					if err != nil {
+						log.Println("invocation worker:", err)
+					}
+					// Iterates through relevant webhooks and
+					for i, webhook := range webhooksToCheck {
+						if err := doWebhookEvents(cfg, &client, webhook, countryDB, invocationMap); err != nil {
+							log.Println("invocation worker: ", err)
+						} else {
+							webhooksToCheck[i].Body.Count = invocationMap[webhook.Body.Country] + webhook.Body.Count
+						}
+					}
+
+					bulkOperation.End() // Executes write operations
+				}
+				log.Println("invocation worker: update took ", time.Now().Second()-startTime.Second(), "seconds")
 				invocationMap = map[string]int32{} // reset of counters
 			}
 		case invocations, ok := <-invocationChannel:
