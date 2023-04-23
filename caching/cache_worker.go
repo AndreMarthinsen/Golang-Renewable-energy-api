@@ -53,7 +53,7 @@ func RunCacheWorker(cfg *util.Config, requests chan CacheRequest, stop <-chan st
 			}
 			cleanupDone <- struct{}{}
 			return
-		case probe, ok := <-requests: // Either request has been received or channel is closed
+		case val, ok := <-requests: // Either request has been received or channel is closed
 			if !ok {
 				log.Println("Cache worker lost contact with request channel.\n" +
 					"Running cleanup routine and shutting down cache worker.")
@@ -64,34 +64,26 @@ func RunCacheWorker(cfg *util.Config, requests chan CacheRequest, stop <-chan st
 				cleanupDone <- struct{}{}
 				return
 			}
-			requests <- probe // value is put back into channel
-			notDone := true
-			for notDone {
-				select {
-				case val, _ := <-requests:
-					response := CacheResponse{Status: http.StatusOK, Neighbours: map[string][]string{}}
-					misses := make([]string, 0)
-					for _, code := range val.CountryRequest {
-						cacheResult, ok := localCache[code]
-						if ok {
-							response.Neighbours[code] = cacheResult.Borders
-						} else {
-							misses = append(misses, code)
-						}
-					}
-					if len(misses) == 0 {
-						if cfg.DebugMode {
-							log.Println("returning response")
-						}
-						val.ChannelRef <- response
-					} else { // Some misses, will be handled when default case occurs
-						val.CountryRequest = misses
-						cacheMisses = append(cacheMisses, CacheMiss{Request: val, Response: response})
-					}
-				default:
-					notDone = false
+			response := CacheResponse{Status: http.StatusOK, Neighbours: map[string][]string{}}
+			misses := make([]string, 0)
+			for _, code := range val.CountryRequest {
+				cacheResult, ok := localCache[code]
+				if ok {
+					response.Neighbours[code] = cacheResult.Borders
+				} else {
+					misses = append(misses, code)
 				}
 			}
+			if len(misses) == 0 {
+				if cfg.DebugMode {
+					log.Println("returning response")
+				}
+				val.ChannelRef <- response
+			} else { // Some misses, will be handled when default case occurs
+				val.CountryRequest = misses
+				cacheMisses = append(cacheMisses, CacheMiss{Request: val, Response: response})
+			}
+
 			if len(cacheMisses) != 0 {
 				// Any cache misses are checked against the external api.
 				// Any valid results are added to the local cache.
