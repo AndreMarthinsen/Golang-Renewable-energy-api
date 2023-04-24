@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -103,6 +104,17 @@ func (c *CountryDataset) GetFullName(cca3 string) (string, error) {
 	if ok {
 		c.mutex.RUnlock()
 		return entry.Name, nil
+	}
+	c.mutex.RUnlock()
+	return "", errors.New("no such entry in dataset")
+}
+
+func (c *CountryDataset) GetCountryByName(name string) (string, error) {
+	c.mutex.RLock()
+	for key, val := range c.data {
+		if strings.ToUpper(name) == strings.ToUpper(val.Name) {
+			return key, nil
+		}
 	}
 	c.mutex.RUnlock()
 	return "", errors.New("no such entry in dataset")
@@ -208,4 +220,21 @@ func (c *CountryDataset) GetPercentage(country string, year int) (error, float64
 	}
 	c.mutex.RUnlock()
 	return errors.New("year not on record"), 0.0
+}
+
+func (c *CountryDataset) CalculatePercentage(country string, startYear int, endYear int) RenewableStatistics {
+	c.mutex.Lock()
+	var percentage float64
+	var yearSpan float64
+	for i := startYear; i <= endYear; i++ {
+		percentage += c.data[country].YearlyPercentages[i]
+		yearSpan++
+	}
+	percentage /= yearSpan
+
+	c.mutex.Unlock()
+	return RenewableStatistics{
+		Name:       c.data[country].Name,
+		Isocode:    country,
+		Percentage: percentage}
 }
