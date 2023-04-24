@@ -129,7 +129,7 @@ func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request,
 	var err error
 	// if no code is provided, a list of every country's average renewable percentage is returned
 	if code == "" {
-		begin, end, sortByValue, err = util.ParseHistoricQuery(w, r, dataset, code)
+		begin, end, sortByValue, err = parseHistoricQuery(w, r, dataset, code)
 		if err != nil {
 			return
 		}
@@ -141,6 +141,8 @@ func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request,
 		}
 	} else {
 		if len(code) > 3 {
+			// if code is longer than three characters, then it is treated as a country name
+			// tries to find country with that name
 			code = strings.ReplaceAll(code, "%20", " ")
 			code, err = dataset.GetCountryByName(code)
 			if err != nil {
@@ -151,7 +153,8 @@ func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request,
 			http.Error(w, "Code mispelled or country not in dataset", http.StatusNotFound)
 			return
 		}
-		begin, end, sortByValue, err = util.ParseHistoricQuery(w, r, dataset, code)
+		// parses
+		begin, end, sortByValue, err = parseHistoricQuery(w, r, dataset, code)
 		if err != nil {
 			return
 		}
@@ -167,4 +170,66 @@ func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request,
 	}
 	http.Header.Add(w.Header(), "content-type", "application/json")
 	util.EncodeAndWriteResponse(&w, stats)
+}
+
+// parseHistoricQuery parses the URL query from a request to the historyRenewables-handler if any is present
+// if an error is encountered is return, along with default values for int and bool
+// otherwise correct values are returned as parsed from query and nil is returned for error
+func parseHistoricQuery(w http.ResponseWriter, r *http.Request, dataset *util.CountryDataset, code string) (int, int, bool, error) {
+	var err error
+	var begin int
+	var end int
+	var sortByValue bool
+	// checks if there is a URL query
+	if r.URL.RawQuery != "" {
+		query := r.URL.Query()
+		if _, ok := query["sortByValue"]; ok {
+			sortByValue, err = strconv.ParseBool(query.Get("sortByValue"))
+			if err != nil {
+				http.Error(w, "Bad request, sortByValue must equal true or false", http.StatusBadRequest)
+				return 0, 0, false, err
+			}
+		}
+		if _, ok := query["begin"]; ok {
+			// tries to find begin
+			begin, err = strconv.Atoi(query.Get("begin"))
+			if err != nil {
+				http.Error(w, "Bad request, begin must be a whole number", http.StatusBadRequest)
+				return 0, 0, false, err
+			}
+			// checks if begin has been set lower than a country's first year in dataset
+			if code != "" {
+				begin = util.Max(begin, dataset.GetFirstYear(code))
+			}
+			// if no query is found for begin, and the request was for specific country
+			// then end is set to that country's first year in dataset
+		} else if !ok && code != "" {
+			begin = dataset.GetFirstYear(code)
+		}
+		// tries to find end
+		if _, ok := query["end"]; ok {
+			end, err = strconv.Atoi(query.Get("end"))
+			if err != nil {
+				http.Error(w, "Bad request, begin must be a whole number", http.StatusBadRequest)
+				return 0, 0, false, err
+			}
+			// checks if end has been higher than a country's last year in dataset
+			if code != "" {
+				end = util.Min(end, dataset.GetLastYear(code))
+			}
+			// if no query is found for end, and the request was for specific country
+			// then end is set to that country's last year in dataset
+		} else if !ok && code != "" {
+			end = dataset.GetLastYear(code)
+		}
+		// Sends error if end year has been set to higher than begin year
+		if begin > end {
+			http.Error(w, "Bad request, begin must be smaller than end", http.StatusBadRequest)
+			return 0, 0, sortByValue, err
+		}
+		return begin, end, sortByValue, nil
+	} else {
+		// if the code is the empty string and no query is present, default values is returned
+		return 0, 0, false, nil
+	}
 }
