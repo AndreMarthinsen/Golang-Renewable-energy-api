@@ -222,6 +222,14 @@ func (c *CountryDataset) GetPercentage(country string, year int) (error, float64
 	return errors.New("year not on record"), 0.0
 }
 
+func (c *CountryDataset) GetLengthOfDataset() (error, int) {
+	if len(c.data) > 0 {
+		return nil, len(c.data)
+	} else {
+		return errors.New("no dataset initialized"), 0
+	}
+}
+
 // CalculatePercentage calculates percentage for a given span of years for a specific country
 func (c *CountryDataset) CalculatePercentage(code string, startYear int, endYear int) (float64, error) {
 	c.mutex.RLock()

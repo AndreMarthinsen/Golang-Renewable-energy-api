@@ -5,6 +5,7 @@ import (
 	"Assignment2/consts"
 	"Assignment2/util"
 	"errors"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -163,7 +164,8 @@ func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request,
 				http.Error(w, "404 not found", http.StatusNotFound)
 				return
 			}
-		} else if !dataset.HasCountryInRecords(code) {
+		}
+		if !dataset.HasCountryInRecords(code) {
 			http.Error(w, "Code mispelled or country not in dataset", http.StatusNotFound)
 			return
 		}
@@ -174,6 +176,8 @@ func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request,
 		}
 		//TODO: invocation is put here for testing. Unsure of proper placement.
 		invocation <- []string{code}
+		log.Println(end)
+		log.Println(begin)
 		// Adds yearly percentages for span from begin to end
 		// if not set by user, it will be from the first to the last year in the dataset
 		stats = dataset.GetStatisticsRange(code, begin, end)
@@ -248,6 +252,10 @@ func parseHistoricQuery(w http.ResponseWriter, r *http.Request, dataset *util.Co
 		return begin, end, sortByValue, nil
 	} else {
 		// if the code is the empty string and no query is present, default values is returned
-		return 0, 0, false, nil
+		if code == "" {
+			return 0, 0, false, nil
+		} else { // if code is not empty, first and last year for that country is returned
+			return dataset.GetFirstYear(code), dataset.GetLastYear(code), false, nil
+		}
 	}
 }

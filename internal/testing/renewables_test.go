@@ -85,7 +85,7 @@ func TestRenewables(t *testing.T) {
 	// Injection of dependencies into the handler
 	testHandler := handlers.HandlerRenew(&config, requests, &countryDataset, invocations)
 
-	runHandlerTest := func(wg *sync.WaitGroup, query string, expectedCode string, routine bool) func(*testing.T) {
+	runHandlerTest := func(wg *sync.WaitGroup, query string, expectedCode string, routine bool, expectedLength int) func(*testing.T) {
 		return func(t *testing.T) {
 			// if the test has been run as part of a go-routine, it will defer signal the
 			// wait group that the routine is done until the function exits/returns
@@ -120,33 +120,40 @@ func TestRenewables(t *testing.T) {
 			if err = decoder.Decode(&statistics); err != nil && len(expectedCode) != 0 {
 				t.Error("Get request to URL failed:", err.Error())
 			}
-			// if the first element of the decoded statsitcs is wrong, the test will faill
-			// for situations like fetching information about all countries this might be too lenient a test
-			// The alternative is to have an expected slice that encapsulates ALL information in the dataset
-			if len(statistics) != 0 && statistics[0].Isocode != expectedCode {
-				t.Error("Unexpected query returned. Expected: ",
-					expectedCode, " but got ", statistics[0].Isocode)
+			if expectedCode == "" {
+				if len(statistics) != expectedLength {
+					t.Error("Unexpected length returned. Expected: ",
+						expectedLength, " but got ", len(statistics))
+				}
+			} else {
+				// if the first element of the decoded statsitcs is wrong, the test will faill
+				// for situations like fetching information about all countries this might be too lenient a test
+				// The alternative is to have an expected slice that encapsulates ALL information in the dataset
+				if len(statistics) != 0 && statistics[0].Isocode != expectedCode {
+					t.Error("Unexpected query returned. Expected: ",
+						expectedCode, " but got ", statistics[0].Isocode)
+				}
 			}
-
 		}
 	}
 
 	// the test, including the name, code to be tested and expected code in the first element of the decoded response
 	var tests = []struct {
-		name     string
-		query    string
-		expected string
+		name       string
+		query      string
+		expected   string
+		neighbours int
 	}{
-		{"CHN test", "CHN", "CHN"},
-		{"FIN test", "FIN", "FIN"},
-		{"KOR test", "KOR", "KOR"},
-		{"NOR test", "NOR", "NOR"},
+		{"CHN test", "CHN", "CHN", 0},
+		{"FIN test", "FIN", "FIN", 0},
+		{"KOR test", "KOR", "KOR", 0},
+		{"NOR test", "NOR", "NOR", 0},
 		//{"PRK test", "PRK", "PRK"},
-		{"RUS test", "RUS", "RUS"},
-		{"SWE test", "SWE", "SWE"},
+		{"RUS test", "RUS", "RUS", 0},
+		{"SWE test", "SWE", "SWE", 0},
 		//{"TJK test", "TJK", "TJK"},
-		{"UZB test", "UZB", "UZB"},
-		{"VNM test", "VNM", "VNM"},
+		{"UZB test", "UZB", "UZB", 0},
+		{"VNM test", "VNM", "VNM", 0},
 	}
 
 	// runs tests for random countries in historical testHandler
@@ -156,20 +163,23 @@ func TestRenewables(t *testing.T) {
 			runHandlerTest(&wg,
 				historyPath+tests[randomNumber].query,
 				tests[randomNumber].expected,
-				true))
+				true, 1))
 	}
 
+	err, datasetLength := countryDataset.GetLengthOfDataset()
+	if err != nil {
+		t.Error(err)
+	}
 	// runs test for all countries in renewable/history endpoint
-	t.Run("All /current countries test", runHandlerTest(&wg, historyPath, "ALG", true))
+	t.Run("All /current countries test", runHandlerTest(&wg, currentPath, "", true, datasetLength))
 
 	// runs a number of concurrent tests equal to testnumber
-
 	for i := 0; i < 100; i++ {
 		randomNumber := rand.Intn(8)
 		t.Run("/current test for country code "+tests[randomNumber].name+" with neighbour query",
 			runHandlerTest(&wg,
 				currentPath+tests[randomNumber].query+neighbourAffix,
 				tests[randomNumber].expected,
-				true))
+				true, 0))
 	}
 }
