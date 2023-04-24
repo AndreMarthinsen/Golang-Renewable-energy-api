@@ -48,7 +48,7 @@ func InvocationWorker(cfg *util.Config, stop chan struct{}, countryDB *util.Coun
 				// firestore queries using 'in' supports up to 30 entries.
 				maxInSize := 30
 				// chunks = count of request batches that has to be performed to complete sync.
-				chunks := (len(updatedCountries) / maxInSize) + 1
+				chunks := ((len(updatedCountries) - 1) / maxInSize) + 1
 				for i := 0; i < chunks; i++ {
 					// queries only on countries that have seen an update in invocations
 					ref := cfg.FirestoreClient.Collection(cfg.WebhookCollection)
@@ -75,6 +75,10 @@ func InvocationWorker(cfg *util.Config, stop chan struct{}, countryDB *util.Coun
 				log.Println("invocation worker: update took ", time.Now().Second()-startTime.Second(), "seconds")
 				invocationMap = map[string]int32{} // reset of counters
 			}
+		case <-stop:
+			// TODO: Shut down mechanic
+			log.Println("invocation worker stopped")
+			break
 		case invocations, ok := <-invocationChannel:
 			if ok != true {
 				// TODO: Shut down due to channel connection loss
