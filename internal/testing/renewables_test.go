@@ -121,14 +121,13 @@ func TestRenewables(t *testing.T) {
 				t.Error("Get request to URL failed:", err.Error())
 			}
 			if expectedCode == "" {
+				// if no expected code has been sent, it will instead check if response has the correct length
 				if len(statistics) != expectedLength {
 					t.Error("Unexpected length returned. Expected: ",
 						expectedLength, " but got ", len(statistics))
 				}
 			} else {
-				// if the first element of the decoded statsitcs is wrong, the test will faill
-				// for situations like fetching information about all countries this might be too lenient a test
-				// The alternative is to have an expected slice that encapsulates ALL information in the dataset
+				// if the first element of the decoded statistics is wrong, the test will fail
 				if len(statistics) != 0 && statistics[0].Isocode != expectedCode {
 					t.Error("Unexpected query returned. Expected: ",
 						expectedCode, " but got ", statistics[0].Isocode)
@@ -144,16 +143,16 @@ func TestRenewables(t *testing.T) {
 		expected   string
 		neighbours int
 	}{
-		{"CHN test", "CHN", "CHN", 0},
-		{"FIN test", "FIN", "FIN", 0},
+		{"CHN test", "CHN", "CHN", 6},
+		{"FIN test", "FIN", "FIN", 3},
 		{"KOR test", "KOR", "KOR", 0},
-		{"NOR test", "NOR", "NOR", 0},
+		{"NOR test", "NOR", "NOR", 3},
 		//{"PRK test", "PRK", "PRK"},
-		{"RUS test", "RUS", "RUS", 0},
-		{"SWE test", "SWE", "SWE", 0},
+		{"RUS test", "RUS", "RUS", 11},
+		{"SWE test", "SWE", "SWE", 2},
 		//{"TJK test", "TJK", "TJK"},
-		{"UZB test", "UZB", "UZB", 0},
-		{"VNM test", "VNM", "VNM", 0},
+		{"UZB test", "UZB", "UZB", 2},
+		{"VNM test", "VNM", "VNM", 1},
 	}
 
 	// runs tests for random countries in historical testHandler
@@ -173,13 +172,13 @@ func TestRenewables(t *testing.T) {
 	// runs test for all countries in renewable/history endpoint
 	t.Run("All /current countries test", runHandlerTest(&wg, currentPath, "", true, datasetLength))
 
-	// runs a number of concurrent tests equal to testnumber
+	// runs a number of concurrent tests for current endpoint with neighbour query
 	for i := 0; i < 100; i++ {
 		randomNumber := rand.Intn(8)
 		t.Run("/current test for country code "+tests[randomNumber].name+" with neighbour query",
 			runHandlerTest(&wg,
 				currentPath+tests[randomNumber].query+neighbourAffix,
 				tests[randomNumber].expected,
-				true, 0))
+				true, 1+tests[randomNumber].neighbours))
 	}
 }
