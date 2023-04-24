@@ -6,14 +6,20 @@ services:
     # mount volumes located in VM on container(s):
     volumes:
       # credentials:
-      - ./.secret:/credentials:ro
+      # mounts as original cmd directory
+      - /home/ubuntu/.secret:/cmd/
       # data set:
-      - ./data:/data:ro    
+      # mounts as original internal directory
+      - /home/ubuntu/data:/internal/assets/
+    
     # env variables to access the shared files:
-    environment:
-      - FIREBASE_CONFIG=${configFile}
-      - ENERGY_DATASET=${dataSet}
+    # TODO remove if unnecessary
+    #  - FIREBASE_CONFIG=${configFile}
+    #  - ENERGY_DATASET=${dataSet}
+    
     # port mapping (remote:local)
     ports:
-      - '10000:8080'
+      - '8080:10000'
+    # restart service at VM reboot:
+    restart: always
 
