@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"sync"
-	"time"
 )
 
 var wg sync.WaitGroup
@@ -47,17 +46,10 @@ func main() {
 		log.Fatal("main: failed to set up firestore client:", err)
 	}
 
-	config := util.Config{
-		CachePushRate:     5 * time.Second,
-		CacheTimeLimit:    2 * time.Hour,
-		DebugMode:         true,
-		DevelopmentMode:   true,
-		Ctx:               &ctx,
-		FirestoreClient:   client,
-		CachingCollection: "Caches",
-		PrimaryCache:      "TestData",
-		WebhookCollection: "Webhooks",
-	}
+	var config util.Config
+	config.Initialize(consts.ConfigPath)
+	config.FirestoreClient = client
+	config.Ctx = &ctx
 
 	// Stub server setup
 	stubStop := make(chan struct{})

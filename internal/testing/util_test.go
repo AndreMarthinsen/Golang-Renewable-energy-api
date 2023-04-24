@@ -1,9 +1,31 @@
 package testing
 
 import (
+	"Assignment2/consts"
 	"Assignment2/util"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
+
+func TestConfigInitialize(t *testing.T) {
+	var testConfig util.Config
+
+	testConfig.InitializeWithDefaults()
+	defaultConfig := util.Config{
+		CachePushRate:     util.SettingsCachePushRate,
+		CacheTimeLimit:    util.SettingsCacheTimeLimit,
+		DebugMode:         util.SettingsDebugMode,
+		DevelopmentMode:   util.SettingsDevelopmentMode,
+		CachingCollection: util.SettingsCachingCollection,
+		PrimaryCache:      util.SettingsPrimaryCache,
+		WebhookCollection: util.SettingsWebhookCollection,
+		WebhookEventRate:  util.SettingsWebhookEventRate,
+	}
+	assert.Equal(t, defaultConfig, testConfig)
+
+	testConfig = util.Config{}
+	testConfig.Initialize(consts.ConfigPath)
+}
 
 // TestFragmentsFromPath test that verifies parsing of an url string into a set of segments.
 func TestFragmentsFromPath(t *testing.T) {
@@ -27,9 +49,9 @@ func TestFragmentsFromPath(t *testing.T) {
 		{"test_2", "unibus/v2/", "/v2/",
 			[]string{"unibus", "v2"}},
 		{"test_3", "unibus//", "unibus",
-            []string{}},
-        {"test_4", "unibus/ /", "unibus",
-            []string{"%20"}},
+			[]string{}},
+		{"test_4", "unibus/ /", "unibus",
+			[]string{"%20"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, runFragmentsTest(tt.path, tt.rootPath, tt.expected))

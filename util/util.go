@@ -4,8 +4,6 @@
 package util
 
 import (
-	"cloud.google.com/go/firestore"
-	"context"
 	"encoding/json"
 	"golang.org/x/exp/constraints"
 	"io"
@@ -16,7 +14,6 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"time"
 )
 
 // Max returns the largest value
@@ -33,20 +30,6 @@ func Min[K constraints.Ordered](val K, val2 K) K {
 		return val2
 	}
 	return val
-}
-
-// Config contains project config.
-type Config struct {
-	CachePushRate     time.Duration // Cache is pushed to external DB with CachePushRate as its interval
-	CacheTimeLimit    time.Duration // Cache entries older than CacheTimeLimit are purged upon loading
-	WebhookEventRate  time.Duration // How often registered webhooks should be checked for event triggers
-	DebugMode         bool          // toggles any extra debug features such as extra logging of events
-	DevelopmentMode   bool          // Sets the service to use stubbing of external APIs
-	Ctx               *context.Context
-	FirestoreClient   *firestore.Client
-	CachingCollection string
-	PrimaryCache      string
-	WebhookCollection string
 }
 
 // RenewableStatistics struct that encapsulates information that will be returned for a successful request

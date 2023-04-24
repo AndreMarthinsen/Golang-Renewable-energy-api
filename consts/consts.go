@@ -10,6 +10,8 @@ const CountryFilteringByCode = "?fields=name,languages,maps,borders&codes="
 
 // Internal paths
 
+const ConfigPath = "./config.yaml"
+
 const DataSetPath = "./internal/assets/renewable-share-energy.csv"
 
 const RenewablesPath = "/energy/" + Version + "/renewables/"
@@ -20,6 +22,5 @@ const StatusPath = "/energy/" + Version + "/status/"
 
 const Version = "v1"
 const DefaultPort = "10000"
-const Development = true
 const StubPort = "8888"
 const StubDomain = "http://localhost:" + StubPort
