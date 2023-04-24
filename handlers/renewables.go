@@ -127,14 +127,9 @@ func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request,
 	var begin, end int
 	var sortByValue bool
 	var err error
-	// parses URL query, if any is present
-	/*begin, end, sortByValue, err := parseHistoricQuery(w, r, dataset, code)
-	if err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-	}*/
 	// if no code is provided, a list of every country's average renewable percentage is returned
 	if code == "" {
-		begin, end, sortByValue, err = parseHistoricQuery(w, r, dataset, code)
+		begin, end, sortByValue, err = util.ParseHistoricQuery(w, r, dataset, code)
 		if err != nil {
 			return
 		}
@@ -156,47 +151,15 @@ func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request,
 			http.Error(w, "Code mispelled or country not in dataset", http.StatusNotFound)
 			return
 		}
-		begin, end, sortByValue, err = parseHistoricQuery(w, r, dataset, code)
+		begin, end, sortByValue, err = util.ParseHistoricQuery(w, r, dataset, code)
 		if err != nil {
 			return
 		}
 		//TODO: invocation is put here for testing. Unsure of proper placement.
 		invocation <- []string{code}
-		// set begin and end to match first and last year in dataset
-		// The following checks if there is a URL query, if its correctly formatted, and if
-		// it is, it sets the bounds of the beginning and end of the country's energy history
-		// TODO: put query-handling in its own function
-		/*var err error
-		if strings.Contains(r.URL.RawQuery, "begin") {
-			begin, err = strconv.Atoi(query.Get("begin"))
-			if err != nil {
-				http.Error(w, "Bad request", http.StatusBadRequest)
-			}
-		}
-		if strings.Contains(r.URL.RawQuery, "end") {
-			end, err = strconv.Atoi(query.Get("end"))
-			if err != nil {
-				http.Error(w, "Bad request", http.StatusBadRequest)
-			}
-		}
-		// Sends error if end year has been set to higher than begin year
-		if begin > end {
-			http.Error(w, "Bad request, begin must be smaller than end", http.StatusBadRequest)
-		}
-		if begin < dataset.GetFirstYear(code) {
-			begin = dataset.GetFirstYear(code)
-		}
-		// If end has been set as higher than the last year in the dataset,
-		// it is instead set to the last year
-		// TODO: consider setting this as as bad request error instead
-		if end > dataset.GetLastYear(code) {
-			end = dataset.GetLastYear(code)
-		}
-		*/
 		// Adds yearly percentages for span from begin to end
 		// if not set by user, it will be from the first to the last year in the dataset
 		stats = dataset.GetStatisticsRange(code, begin, end)
-		//stats = append(stats, dataset.CalculatePercentage(code, begin, end))
 	}
 	if len(stats) == 0 {
 		http.Error(w, "Not found", http.StatusNotFound)
@@ -204,42 +167,4 @@ func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request,
 	}
 	http.Header.Add(w.Header(), "content-type", "application/json")
 	util.EncodeAndWriteResponse(&w, stats)
-}
-
-func parseHistoricQuery(w http.ResponseWriter, r *http.Request, dataset *util.CountryDataset, code string) (int, int, bool, error) {
-	var err error
-	var begin int
-	var end int
-	var sortByValue bool
-	if r.URL.RawQuery != "" {
-		query := r.URL.Query()
-		if _, ok := query["sortByValue"]; ok {
-			sortByValue, err = strconv.ParseBool(query.Get("sortByValue"))
-			if err != nil {
-				http.Error(w, "Bad request, sortByValue must equal true or false", http.StatusBadRequest)
-				return 0, 0, false, err
-			}
-		}
-		if _, ok := query["begin"]; ok {
-			begin, err = strconv.Atoi(query.Get("begin"))
-			if err != nil {
-				http.Error(w, "Bad request, begin must be a whole number", http.StatusBadRequest)
-				return 0, 0, false, err
-			} else if code != "" {
-				begin = dataset.GetFirstYear(code)
-			}
-		}
-		if _, ok := query["end"]; ok {
-			end, err = strconv.Atoi(query.Get("end"))
-			if err != nil {
-				http.Error(w, "Bad request, begin must be a whole number", http.StatusBadRequest)
-				return 0, 0, false, err
-			}
-		} else if code != "" {
-			end = dataset.GetLastYear(code)
-		}
-		return begin, end, sortByValue, nil
-	} else {
-		return 0, 0, false, nil
-	}
 }
