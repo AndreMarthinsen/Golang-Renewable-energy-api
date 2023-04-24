@@ -6,21 +6,32 @@ package util
 import (
 	"cloud.google.com/go/firestore"
 	"context"
-	"encoding/csv"
 	"encoding/json"
+	"golang.org/x/exp/constraints"
 	"io"
 	"log"
-	"os"
-	"sort"
-	"strconv"
-	"sync"
-
 	// "os"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 )
+
+// Max returns the largest value
+func Max[K constraints.Ordered](val K, val2 K) K {
+	if val > val2 {
+		return val
+	}
+	return val2
+}
+
+// Min returns the smallest value
+func Min[K constraints.Ordered](val K, val2 K) K {
+	if val > val2 {
+		return val2
+	}
+	return val
+}
 
 // Config contains project config.
 type Config struct {
@@ -34,7 +45,14 @@ type Config struct {
 	CachingCollection string
 	PrimaryCache      string
 	WebhookCollection string
-	DatasetLock       sync.Mutex
+}
+
+// RenewableStatistics struct that encapsulates information that will be returned for a successful request
+type RenewableStatistics struct {
+	Name       string  `json:"name"`
+	Isocode    string  `json:"isocode"`
+	Year       int     `json:"year,omitempty"` // if empty, will not be encoded in the response
+	Percentage float64 `json:"percentage"`
 }
 
 // HandlerContext is a container for the name, writer and client object associated with
@@ -48,6 +66,9 @@ type HandlerContext struct {
 // Country struct that encapsulates the information for one Country in the dataset
 type Country struct {
 	Name              string
+	AveragePercentage float64
+	StartYear         int
+	EndYear           int
 	YearlyPercentages map[int]float64
 }
 
@@ -132,68 +153,4 @@ func LogOnDebug(cfg *Config, msg ...any) {
 	if cfg.DebugMode {
 		log.Println("dbg:", msg)
 	}
-}
-
-// InitializeDataset reads a csv-file line by line and fills a map of Country structs
-// with information,
-func InitializeDataset(path string) (map[string]Country, error) {
-	code := ""
-	dataset := make(map[string]Country)
-	//sortedYears = make(map[string][]int)
-	nr := ReadCSV(path)
-	for {
-		record, err := nr.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Println(err)
-			return make(map[string]Country), err
-		}
-		if record[1] != code {
-			code = record[1]
-			dataset[record[1]] = Country{Name: record[0], YearlyPercentages: make(map[int]float64)}
-		} else if record[1] == code && record[1] != "" {
-			year, _ := strconv.Atoi(record[2])
-			dataset[code].YearlyPercentages[year], _ = strconv.ParseFloat(record[3], 32)
-		}
-	}
-	// removes all entries where the code is not three characters long or where the code is the empty string
-	// could perhaps be eliminated with, but eliminates invalid entries
-	// also sorts the yearly renewable percentages for each Country
-	for key := range dataset {
-		/*sortedYears[key] = make([]int, 0)
-		for year := range val.YearlyPercentages {
-			sortedYears[key] = append(sortedYears[key], year)
-		}
-		sort.Ints(sortedYears[key])*/
-		if key == "" || len(key) > 3 {
-			delete(dataset, key)
-		}
-	}
-	return dataset, nil
-}
-
-// ReadCSV attempts to open a CSV file and return a CSV-reader for that file
-// if unsuccessful, the program crashes
-func ReadCSV(path string) *csv.Reader {
-	f, err := os.Open(path)
-	if err != nil {
-		log.Fatalf("File error: %v\n", err)
-	}
-	nr := csv.NewReader(f)
-
-	return nr
-}
-
-func SortDataset(dataset map[string]Country) map[string][]int {
-	sortedYears := make(map[string][]int)
-	for key, val := range dataset {
-		sortedYears[key] = make([]int, 0)
-		for year := range val.YearlyPercentages {
-			sortedYears[key] = append(sortedYears[key], year)
-		}
-		sort.Ints(sortedYears[key])
-	}
-	return sortedYears
 }

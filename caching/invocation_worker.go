@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+// webhookCheck encapsulates the ID of a webhook in the DB along
+// with the fields of the document.
 type webhookCheck struct {
 	ID   string
 	Body notifications.WebhookRegistration
@@ -22,45 +24,61 @@ type webhookCheck struct {
 // an in memory data structure mapping country code to invocation count.
 // Registered webhooks are periodically checked in DB to see if they should
 // trigger, and if so, a message is sent to the registered url.
-func InvocationWorker(cfg *util.Config, stop chan struct{}, countryDB map[string]util.Country, invocationChannel chan []string) {
+func InvocationWorker(cfg *util.Config, stop chan struct{}, countryDB *util.CountryDataset, invocationChannel chan []string) {
 
 	// maps cca3 codes to the invocation count for a current cycle.
 	invocationMap := make(map[string]int32, 0)
 
 	client := http.Client{}
-
+	// Worker will stop to synchronize with the webhook DB every X seconds
+	// set in the server config. When not synchronizing and doing triggers
+	// the worker will count up any invocations of countries on the API endpoints.
 	for {
 		select {
-		case <-time.After(time.Second * 1): // TODO: Config setting
+		case <-time.After(cfg.WebhookEventRate):
+			startTime := time.Now()
 			if len(invocationMap) != 0 {
-				log.Println("handling invocations for")
-				for code := range invocationMap {
-					log.Println(code)
-				}
-				updatedCountries := getUpdatedCountries(invocationMap)
-
-				ref := cfg.FirestoreClient.Collection(cfg.WebhookCollection)
-				query := ref.Where("country", "in", updatedCountries)
-				iter := query.Documents(*cfg.Ctx)
-
-				bulkOperation := cfg.FirestoreClient.BulkWriter(*cfg.Ctx)
-
-				err, webhooksToCheck := getDocumentsToUpdate(iter, bulkOperation, invocationMap)
-				if err != nil {
-					log.Println("invocation worker:", err)
-				}
-				// Iterates through relevant webhooks and
-				for i, webhook := range webhooksToCheck {
-					if err := doWebhookEvents(cfg, &client, webhook, countryDB, invocationMap); err != nil {
-						log.Println("invocation worker: ", err)
-					} else {
-						webhooksToCheck[i].Body.Count = invocationMap[webhook.Body.Country] + webhook.Body.Count
+				if cfg.DebugMode {
+					log.Println("handling invocations for ", len(invocationMap), " invocations")
+					for code := range invocationMap {
+						log.Println(code)
 					}
 				}
+				updatedCountries := getUpdatedCountries(invocationMap)
+				// firestore queries using 'in' supports up to 30 entries.
+				maxInSize := 30
+				// chunks = count of request batches that has to be performed to complete sync.
+				chunks := ((len(updatedCountries) - 1) / maxInSize) + 1
+				for i := 0; i < chunks; i++ {
+					// queries only on countries that have seen an update in invocations
+					ref := cfg.FirestoreClient.Collection(cfg.WebhookCollection)
+					query := ref.Where("country", "in",
+						updatedCountries[i*maxInSize:util.Min((i+1)*maxInSize, len(invocationMap))],
+					)
+					iter := query.Documents(*cfg.Ctx)
+					// update is done as atomic bulk operations
+					bulkOperation := cfg.FirestoreClient.BulkWriter(*cfg.Ctx)
 
-				bulkOperation.End()                // Executes write operations
+					err, webhooksToCheck := updateCallCountsAndGetEvents(iter, bulkOperation, invocationMap)
+					if err != nil {
+						log.Println("invocation worker:", err)
+					}
+					// Outbound messages done for all triggered webhooks
+					for _, webhook := range webhooksToCheck {
+						if err := doWebhookEvents(cfg, &client, webhook, countryDB, invocationMap); err != nil {
+							log.Println("invocation worker: ", err)
+						}
+					}
+
+					bulkOperation.End() // Executes write operations
+				}
+				log.Println("invocation worker: update took ", time.Now().Second()-startTime.Second(), "seconds")
 				invocationMap = map[string]int32{} // reset of counters
 			}
+		case <-stop:
+			// TODO: Shut down mechanic
+			log.Println("invocation worker stopped")
+			break
 		case invocations, ok := <-invocationChannel:
 			if ok != true {
 				// TODO: Shut down due to channel connection loss
@@ -77,7 +95,8 @@ func InvocationWorker(cfg *util.Config, stop chan struct{}, countryDB map[string
 	}
 }
 
-// getUpdatedCountries retrieves a list of all countries that have been updated
+// getUpdatedCountries returns a list of all countries found in the map for use with
+// firestore queries.
 func getUpdatedCountries(invocations map[string]int32) []string {
 	updatedCountries := make([]string, 0)
 	for cca3 := range invocations {
@@ -86,8 +105,13 @@ func getUpdatedCountries(invocations map[string]int32) []string {
 	return updatedCountries
 }
 
-func getDocumentsToUpdate(iter *firestore.DocumentIterator, bulkOperation *firestore.BulkWriter,
+// updateCallCountsAndGetEvents iterates through the documents for a batch of countries
+// and updates the call_count of all documents.
+// On success: nil, list of webhooks that have been triggered
+// On failure: error, nil slice or partially constructed slice.
+func updateCallCountsAndGetEvents(iter *firestore.DocumentIterator, bulkOperation *firestore.BulkWriter,
 	invocationMap map[string]int32) (error, []webhookCheck) {
+
 	var webhooksToCheck []webhookCheck
 	for {
 		doc, err := iter.Next()
@@ -114,8 +138,14 @@ func getDocumentsToUpdate(iter *firestore.DocumentIterator, bulkOperation *fires
 	return nil, webhooksToCheck
 }
 
+// doWebhookEvents performs outgoing messaging for triggered webhooks.
+// A separate message will be sent out for each multiple of the clients
+// 'calls' value since the last check was done, where 'calls' how many
+// calls should go to a specified endpoint before an event triggers.
+// On success: nil
+// On failure: error
 func doWebhookEvents(cfg *util.Config, client *http.Client, webhook webhookCheck,
-	countryDB map[string]util.Country, invocations map[string]int32) error {
+	countryDB *util.CountryDataset, invocations map[string]int32) error {
 
 	oldCount := webhook.Body.Count
 	newCount := invocations[webhook.Body.Country] + oldCount
@@ -123,19 +153,14 @@ func doWebhookEvents(cfg *util.Config, client *http.Client, webhook webhookCheck
 	triggers := newCount/webhook.Body.Calls - previousTriggers
 	if triggers != 0 {
 		for j := 0; int32(j) < triggers; j++ {
-			cfg.DatasetLock.Lock()
-			country, ok := countryDB[webhook.Body.Country]
-			cfg.DatasetLock.Unlock()
-			var countryName string
-			if ok {
-				countryName = country.Name
-			} else {
-				return errors.New("invocation worker: cca3 -> full name not found in local DB")
+			countryName, err := countryDB.GetFullName(webhook.Body.Country)
+			if err != nil {
+				log.Println("webhook worker: ", err)
 			}
 			message := notifications.WebhookTrigger{
 				WebhookId:  webhook.ID,
 				Country:    countryName,
-				TotalCalls: previousTriggers + int32(j)*webhook.Body.Calls,
+				TotalCalls: previousTriggers*webhook.Body.Calls + int32(j+1)*webhook.Body.Calls,
 			}
 			payload, err := json.Marshal(message)
 			if err != nil {
