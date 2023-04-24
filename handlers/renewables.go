@@ -4,6 +4,7 @@ import (
 	"Assignment2/caching"
 	"Assignment2/consts"
 	"Assignment2/util"
+	"errors"
 	"net/http"
 	"sort"
 	"strconv"
@@ -134,6 +135,19 @@ func handlerHistorical(cfg *util.Config, w http.ResponseWriter, r *http.Request,
 			return
 		}
 		stats = dataset.GetHistoricStatistics()
+		// if both begin and end queries have been specified, the averages for all countries are
+		// calculated only for that span
+		if begin != 0 && end != 0 {
+			for i := range stats {
+				percentage := 0.0
+				percentage, err = dataset.CalculatePercentage(stats[i].Isocode, begin, end)
+				if err != nil {
+					http.Error(w, "Internal server error", http.StatusInternalServerError)
+					return
+				}
+				stats[i].Percentage = percentage
+			}
+		}
 		if sortByValue {
 			sort.Slice(stats, func(i, j int) bool {
 				return stats[i].Percentage < stats[j].Percentage
@@ -224,8 +238,12 @@ func parseHistoricQuery(w http.ResponseWriter, r *http.Request, dataset *util.Co
 		}
 		// Sends error if end year has been set to higher than begin year
 		if begin > end {
+			if code == "" {
+				http.Error(w, "Bad request, begin end must be specified for all countries", http.StatusBadRequest)
+				return 0, 0, sortByValue, errors.New("bad request, begin and end must be specified for all countries")
+			}
 			http.Error(w, "Bad request, begin must be smaller than end", http.StatusBadRequest)
-			return 0, 0, sortByValue, err
+			return 0, 0, sortByValue, errors.New("bad request, begin must be smaller than end")
 		}
 		return begin, end, sortByValue, nil
 	} else {
