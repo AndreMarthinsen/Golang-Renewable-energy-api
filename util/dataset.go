@@ -241,6 +241,11 @@ func (c *CountryDataset) CalculatePercentage(code string, startYear int, endYear
 		}
 		if endYear > c.GetLastYear(code) {
 			endYear = c.GetLastYear(code)
+		} else if endYear < c.GetFirstYear(code) {
+			return 0, errors.New("no data in record for time span")
+		}
+		if endYear < startYear {
+			return 0, errors.New("end must be higher than begin")
 		}
 		for i := startYear; i <= endYear; i++ {
 			percentage += data.YearlyPercentages[i]
