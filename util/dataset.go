@@ -56,9 +56,9 @@ func (c *CountryDataset) Initialize(path string) error {
 	}
 	// Calculation of averages
 	for cca3, data := range c.data {
+		var percentage float64
 		startYear := 3000
 		endYear := 0
-		var percentage float64
 
 		for year, p := range data.YearlyPercentages {
 			if year < startYear {
@@ -222,19 +222,33 @@ func (c *CountryDataset) GetPercentage(country string, year int) (error, float64
 	return errors.New("year not on record"), 0.0
 }
 
-func (c *CountryDataset) CalculatePercentage(country string, startYear int, endYear int) RenewableStatistics {
-	c.mutex.Lock()
-	var percentage float64
-	var yearSpan float64
-	for i := startYear; i <= endYear; i++ {
-		percentage += c.data[country].YearlyPercentages[i]
-		yearSpan++
+func (c *CountryDataset) GetLengthOfDataset() (error, int) {
+	if len(c.data) > 0 {
+		return nil, len(c.data)
+	} else {
+		return errors.New("no dataset initialized"), 0
 	}
-	percentage /= yearSpan
+}
 
-	c.mutex.Unlock()
-	return RenewableStatistics{
-		Name:       c.data[country].Name,
-		Isocode:    country,
-		Percentage: percentage}
+// CalculatePercentage calculates percentage for a given span of years for a specific country
+func (c *CountryDataset) CalculatePercentage(code string, startYear int, endYear int) (float64, error) {
+	c.mutex.RLock()
+	if data, ok := c.data[code]; ok {
+		var percentage float64
+		var yearSpan float64
+		if startYear < c.GetFirstYear(code) {
+			startYear = c.GetFirstYear(code)
+		}
+		if endYear > c.GetLastYear(code) {
+			endYear = c.GetLastYear(code)
+		}
+		for i := startYear; i <= endYear; i++ {
+			percentage += data.YearlyPercentages[i]
+			yearSpan++
+		}
+		percentage /= yearSpan
+		return percentage, nil
+	}
+	c.mutex.RUnlock()
+	return 0.0, errors.New("country not on record")
 }
