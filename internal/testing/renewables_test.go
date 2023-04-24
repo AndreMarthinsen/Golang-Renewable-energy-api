@@ -58,6 +58,7 @@ func TestRenewables(t *testing.T) {
 	// if the program is in development mode, a stubserver is run as a goroutine
 	stubStop := make(chan struct{})
 	if config.DevelopmentMode {
+		wg.Add(1)
 		go stubbing.RunSTUBServer(&config, &wg, consts.StubPort, stubStop)
 	}
 
