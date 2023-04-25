@@ -47,7 +47,7 @@ func updateLocalCache(cfg *util.Config, client *http.Client, cache *map[string]C
 	} else {
 		url = consts.CountryDomain
 	}
-	url += "//" + "?codes=" + joinedCountryCodes
+	url += consts.CountryCodePath + "?codes=" + joinedCountryCodes
 
 	request, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
