@@ -4,6 +4,8 @@ import (
 	"Assignment2/consts"
 	"Assignment2/util"
 	"github.com/stretchr/testify/assert"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -138,21 +140,41 @@ func TestGetDomainStatus(t *testing.T) {
 	}
 }
 
-/*
-// TODO: Implement tests for the ones below, but verify that they are in use first and possibly refactor beforehand.
-// EncodeAndWriteResponse attempts to encode data as a json response. Data must be a pointer
-// to an appropriate object suited for encoding as json. Logging and errors are handled
-// within the function.
-func EncodeAndWriteResponse(w *http.ResponseWriter, data interface{}) {
-	encoder := json.NewEncoder(*w)
-	if err := encoder.Encode(data); err != nil {
-		log.Println("Encoding error:", err)
-		http.Error(*w, "Error during encoding", http.StatusInternalServerError)
-		return
+func TestEncodeAndWriteResponse(t *testing.T) {
+	runEncodeTest := func(expected int, object interface{}) func(t *testing.T) {
+		return func(t *testing.T) {
+			handler := func(w http.ResponseWriter) {
+				util.EncodeAndWriteResponse(&w, object)
+			}
+			w := httptest.NewRecorder()
+			handler(w)
+			resp := w.Result()
+			if resp.StatusCode != expected {
+				t.Errorf("Expected status #{expected} but got #{resp.StatusCode}")
+			}
+		}
 	}
-	http.Error(*w, "", http.StatusOK)
+	testCases := []struct {
+		Name             string
+		ExpectedResponse int
+		Object           interface{}
+	}{
+		{"Valid encode test",
+			200,
+			"This is a test encoding"},
+		{"Invalid encode test",
+			500,
+			make(chan int)},
+	}
+	for _, test := range testCases {
+		t.Run(test.Name,
+			runEncodeTest(test.ExpectedResponse, test.Object))
+
+	}
+
 }
 
+/*
 // HandleOutgoing takes a HandlerContext, request method, target url and a reader object along with a pointer
 // to an object to be used for decoding.
 // target point to an object expected to match the returned json body resulting from the request.
