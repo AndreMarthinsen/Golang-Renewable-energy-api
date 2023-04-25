@@ -38,12 +38,15 @@ func RunCacheWorker(cfg *util.Config, requests chan CacheRequest, stop <-chan st
 		select {
 		case <-time.After(cfg.CachePushRate):
 			if cacheUpdated {
+				util.LogOnDebug(cfg, "cache worker: handling updates")
 				// Updates external Cache file by overwriting
 				err := fsutils.AddDocumentById(cfg, cfg.CachingCollection, cfg.PrimaryCache, &localCache)
 				if err != nil {
 					log.Println("cache worker: failed to update cache in DB on periodic update")
 				}
 				cacheUpdated = false
+			} else {
+				util.LogOnDebug(cfg, "cache worker: no updates")
 			}
 		case <-stop: // Signal received on stop channel, shutting down worker.
 			// Writes to primary cache in db before shutting down
@@ -64,6 +67,7 @@ func RunCacheWorker(cfg *util.Config, requests chan CacheRequest, stop <-chan st
 				cleanupDone <- struct{}{}
 				return
 			}
+			util.LogOnDebug(cfg, "cache worker: got a request")
 			response := CacheResponse{Status: http.StatusOK, Neighbours: map[string][]string{}}
 			misses := make([]string, 0)
 			for _, code := range val.CountryRequest {
@@ -85,6 +89,7 @@ func RunCacheWorker(cfg *util.Config, requests chan CacheRequest, stop <-chan st
 			}
 
 			if len(cacheMisses) != 0 {
+				util.LogOnDebug(cfg, "handling ", len(cacheMisses), " cachemisses")
 				// Any cache misses are checked against the external api.
 				// Any valid results are added to the local cache.
 				cacheUpdated = updateLocalCache(cfg, &client, &localCache, cacheMisses) || cacheUpdated

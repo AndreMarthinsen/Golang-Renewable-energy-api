@@ -6,10 +6,7 @@ import (
 	"Assignment2/handlers"
 	"Assignment2/internal/stubbing"
 	"Assignment2/util"
-	"context"
 	"encoding/json"
-	firebase "firebase.google.com/go"
-	"google.golang.org/api/option"
 	"io"
 	"log"
 	"math/rand"
@@ -17,7 +14,6 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
-	"time"
 )
 
 // Internal paths
@@ -28,36 +24,17 @@ const neighbourAffix = "?neighbours=true"
 // TestRenewables tests the renewables/ endpoint, for both current and history
 func TestRenewables(t *testing.T) {
 	wg := sync.WaitGroup{}
-	// Setup of firebase context and application
-	ctx := context.Background()
-	opt := option.WithCredentialsFile("./sha.json")
-	app, err := firebase.NewApp(ctx, nil, opt)
-	if err != nil {
-		log.Fatal("failed to to create new app")
-	}
-	firestoreClient, err := app.Firestore(ctx)
-	if err != nil {
-		log.Fatal("Failed to set up caching client")
-	}
 
 	// Initialization of dataset from CSV
 	var countryDataset util.CountryDataset
-	err = countryDataset.Initialize(consts.DataSetPath)
+	err := countryDataset.Initialize(consts.DataSetPath)
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	// sets up the server configuration
-	config := util.Config{
-		CachePushRate:     5 * time.Second,
-		CacheTimeLimit:    2 * time.Hour,
-		DebugMode:         false,
-		DevelopmentMode:   true,
-		Ctx:               &ctx,
-		FirestoreClient:   firestoreClient,
-		CachingCollection: "Caches",
-		PrimaryCache:      "TestData",
-		WebhookCollection: "Webhooks",
+	config, err := util.SetUpServiceConfig(consts.ConfigPath, "sha.json")
+	if err != nil {
+		log.Fatal("service startup: unable to utilize firebase: ", err)
 	}
 
 	// Setup of communication channels used with worker threads
