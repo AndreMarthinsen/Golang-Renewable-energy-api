@@ -91,6 +91,7 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, code string, request
 			neighboursTrue, err := strconv.ParseBool(query.Get("neighbours"))
 			if err != nil {
 				http.Error(w, "Bad request, neighbours must equal true or false", http.StatusBadRequest)
+				return
 			}
 			if neighboursTrue {
 				// sends a request to the cache worker
