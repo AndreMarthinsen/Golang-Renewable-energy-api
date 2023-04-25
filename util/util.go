@@ -128,3 +128,10 @@ func EncodeAndWriteResponse(w *http.ResponseWriter, data interface{}) {
 	}
 	http.Error(*w, "", http.StatusOK)
 }
+
+// LogOnDebug logs all argument items if Config.DebugMode == true
+func LogOnDebug(cfg *Config, msg ...any) {
+	if cfg.DebugMode {
+		log.Println("dbg:", msg)
+	}
+}
