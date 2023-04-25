@@ -11,6 +11,8 @@ import (
 	"google.golang.org/api/option"
 	"io"
 	"log"
+	"strconv"
+
 	// "os"
 	"net"
 	"net/http"
@@ -102,25 +104,17 @@ func FragmentsFromPath(Path string, rootPath string) []string {
 // return: err, err/nil
 func GetDomainStatus(URL string) (string, error) {
 	response, err := http.Get(URL)
-	var status string
 	if err != nil {
 		if netError, ok := err.(net.Error); ok && netError.Timeout() {
-			log.Println(URL, " request timed out: ", err)
-			status = "timed out contacting service"
+			return strconv.Itoa(http.StatusRequestTimeout) + " " +
+				http.StatusText(http.StatusRequestTimeout), nil
 		} else {
-			log.Println(URL, " protocol error: ", err)
-			status = "protocol error"
-		}
-	} else {
-		status = response.Status
-	}
-	if response != nil { // response == nil in case of time out
-		err = response.Body.Close()
-		if err != nil {
-			log.Println(URL, ": Failed to close body:", err)
+			return strconv.Itoa(http.StatusServiceUnavailable) + " " +
+				http.StatusText(http.StatusServiceUnavailable), nil
 		}
 	}
-	return status, err
+	err = response.Body.Close()
+	return response.Status, err
 }
 
 // EncodeAndWriteResponse attempts to encode data as a json response. Data must be a pointer
