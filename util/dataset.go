@@ -236,17 +236,21 @@ func (c *CountryDataset) CalculatePercentage(code string, startYear int, endYear
 	if data, ok := c.data[code]; ok {
 		var percentage float64
 		var yearSpan float64
-		if startYear < c.GetFirstYear(code) {
-			startYear = c.GetFirstYear(code)
-		}
-		if endYear > c.GetLastYear(code) {
+		// if start year is lower than that country's first year in records it is set to the first year
+		startYear = Max(startYear, data.StartYear)
+		// if end year has not been specified then it is se to the last year in records
+		if endYear == 0 {
 			endYear = c.GetLastYear(code)
-		} else if endYear < c.GetFirstYear(code) {
-			return 0, errors.New("no data in record for time span")
+		} else { //if endYear has been set higher than the last year it is set to the last year
+			endYear = Min(endYear, data.EndYear)
 		}
+		// if end year has been set higher than start year (generally because the user-specified
+		// end year is set before the country has records in the dataset or because begin year has
+		// been set after the last year in records, then an error is returned
 		if endYear < startYear {
-			return 0, errors.New("end must be higher than begin")
+			return 0, errors.New("data not in record for specified years")
 		}
+		// calculates average for span of years
 		for i := startYear; i <= endYear; i++ {
 			percentage += data.YearlyPercentages[i]
 			yearSpan++
