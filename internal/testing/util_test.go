@@ -27,6 +27,20 @@ func TestConfigInitialize(t *testing.T) {
 	testConfig.Initialize(consts.ConfigPath)
 }
 
+func TestMax(t *testing.T) {
+	assert.Equal(t, 5, util.Max(5, 0))
+	assert.Equal(t, 0, util.Max(-5, 0))
+	assert.Equal(t, 0.0, util.Max(0.0, 0.0))
+	assert.Equal(t, 'b', util.Max('b', 'a'))
+}
+
+func TestMin(t *testing.T) {
+	assert.Equal(t, 0, util.Min(5, 0))
+	assert.Equal(t, -5, util.Min(-5, 0))
+	assert.Equal(t, 0.0, util.Min(0.0, 0.0))
+	assert.Equal(t, 'a', util.Min('b', 'a'))
+}
+
 // TestFragmentsFromPath test that verifies parsing of an url string into a set of segments.
 func TestFragmentsFromPath(t *testing.T) {
 	runFragmentsTest := func(path string, rootPath string, expected []string) func(t *testing.T) {
