@@ -30,7 +30,7 @@ func main() {
 		port = consts.DefaultPort
 	}
 
-	config, err := util.SetUpServiceConfig(consts.ConfigPath)
+	config, err := util.SetUpServiceConfig(consts.ConfigPath, consts.CredentialsPath)
 	if err != nil {
 		log.Fatal("service startup: unable to utilize firebase: ", err)
 	}

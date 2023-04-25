@@ -17,6 +17,7 @@ const DataSetPath = "./internal/assets/renewable-share-energy.csv"
 const RenewablesPath = "/energy/" + Version + "/renewables/"
 const NotificationPath = "/energy/" + Version + "/notifications/"
 const StatusPath = "/energy/" + Version + "/status/"
+const CredentialsPath = "./cmd/sha.json"
 
 // Development
 
