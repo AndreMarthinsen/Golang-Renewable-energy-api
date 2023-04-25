@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"cloud.google.com/go/firestore"
 	"context"
+	"errors"
 	"gopkg.in/yaml.v3"
-	"log"
 	"os"
 	"time"
 )
@@ -69,19 +69,23 @@ func (c *Config) InitializeWithDefaults() {
 
 // Initialize resets config settings to their defaults by calling InitializeWithDefaults
 // before attempting to parse settings from the project config file.
-func (c *Config) Initialize(path string) {
+//
+// On failure: All values set to defaults
+// ON success: All present values from config set in struct
+func (c *Config) Initialize(path string) error {
+	// Values reset to defaults
+	c.InitializeWithDefaults()
+
 	configData, err := os.ReadFile(path)
 	if err != nil {
-		log.Println("server config: failed to load configuration, running with default settings.", err)
+		return errors.New("config init: " + err.Error())
 	}
 	reader := bytes.NewReader(configData)
 	decoder := yaml.NewDecoder(reader)
-	// Set the custom encoder and decoder functions for duration values.
-	c.InitializeWithDefaults()
 
 	temp := configYAML{}
 	if err := decoder.Decode(&temp); err != nil {
-		log.Println("server config: failed to load configuration, running with default settings.", err)
+		return errors.New("config init: " + err.Error())
 	}
 
 	// Sets non-default time intervals only if non-zero or above set limitations.
@@ -91,7 +95,7 @@ func (c *Config) Initialize(path string) {
 	if temp.Intervals.CacheTimeLimit != 0 {
 		c.CacheTimeLimit = time.Duration(temp.Intervals.CacheTimeLimit) * time.Minute
 	}
-	if temp.Intervals.WebhookEventRate > minimumWebhookInterval {
+	if temp.Intervals.WebhookEventRate >= minimumWebhookInterval {
 		c.WebhookEventRate = time.Duration(temp.Intervals.WebhookEventRate) * time.Second
 	}
 	// copy of remaining fields.
@@ -100,4 +104,6 @@ func (c *Config) Initialize(path string) {
 	c.CachingCollection = temp.Firebase.CachingCollectionName
 	c.PrimaryCache = temp.Firebase.PrimaryCacheDocumentName
 	c.WebhookCollection = temp.Firebase.WebhookCollectionName
+
+	return nil
 }

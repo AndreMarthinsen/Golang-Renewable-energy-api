@@ -4,10 +4,15 @@
 package util
 
 import (
+	"context"
 	"encoding/json"
+	firebase "firebase.google.com/go"
 	"golang.org/x/exp/constraints"
+	"google.golang.org/api/option"
 	"io"
 	"log"
+	"strconv"
+
 	// "os"
 	"net"
 	"net/http"
@@ -55,6 +60,35 @@ type Country struct {
 	YearlyPercentages map[int]float64
 }
 
+// SetUpServiceConfig initializes the firestore context and client, then reads configuration
+// settings from file. In the event of no config file being found, default settings will
+// be used. Failure to find a config file will be logged, but does not trigger an error.
+// Only failing to set up the firestore context and client will lead to a fail/error.
+//
+// On success: Config struct with valid firestore pointers, nil
+// On failure: Config with nil pointers, error
+func SetUpServiceConfig(configPath string, credentials string) (Config, error) {
+	ctx := context.Background()
+	opt := option.WithCredentialsFile(credentials)
+	app, err := firebase.NewApp(ctx, nil, opt)
+	if err != nil {
+		return Config{}, err
+	}
+	client, err := app.Firestore(ctx)
+	if err != nil {
+		return Config{}, err
+	}
+
+	var config Config
+	err = config.Initialize(configPath)
+	if err != nil { // Allowable error, running service with default config.
+		log.Println(err)
+	}
+	config.FirestoreClient = client
+	config.Ctx = &ctx
+	return config, nil
+}
+
 // FragmentsFromPath takes an incoming URL path and the path of a handler, removing the handler portion
 // of the full path, returning the remaining path split on '/'. The function also replaces any whitespace
 // with %20 for safety.
@@ -70,25 +104,17 @@ func FragmentsFromPath(Path string, rootPath string) []string {
 // return: err, err/nil
 func GetDomainStatus(URL string) (string, error) {
 	response, err := http.Get(URL)
-	var status string
 	if err != nil {
 		if netError, ok := err.(net.Error); ok && netError.Timeout() {
-			log.Println(URL, " request timed out: ", err)
-			status = "timed out contacting service"
+			return strconv.Itoa(http.StatusRequestTimeout) + " " +
+				http.StatusText(http.StatusRequestTimeout), nil
 		} else {
-			log.Println(URL, " protocol error: ", err)
-			status = "protocol error"
-		}
-	} else {
-		status = response.Status
-	}
-	if response != nil { // response == nil in case of time out
-		err = response.Body.Close()
-		if err != nil {
-			log.Println(URL, ": Failed to close body:", err)
+			return strconv.Itoa(http.StatusServiceUnavailable) + " " +
+				http.StatusText(http.StatusServiceUnavailable), nil
 		}
 	}
-	return status, err
+	err = response.Body.Close()
+	return response.Status, err
 }
 
 // EncodeAndWriteResponse attempts to encode data as a json response. Data must be a pointer

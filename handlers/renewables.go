@@ -78,33 +78,34 @@ func handlerCurrent(w http.ResponseWriter, r *http.Request, code string, request
 		invocation <- []string{code}
 
 		stats = append(stats, statistic)
-	}
-	// if no match is found for passed code, or if results are otherwise failed to be found
-	// returns error
-	if len(stats) == 0 {
-		http.Error(w, "Not found", http.StatusNotFound)
-		return
-	}
-	// If a neighbours query has been found, attempts to parse into bool
-	if r.URL.RawQuery != "" {
-		query := r.URL.Query()
-		neighboursTrue, err := strconv.ParseBool(query.Get("neighbours"))
-		if err != nil {
-			http.Error(w, "Bad request, neighbours must equal true or false", http.StatusBadRequest)
+
+		// if no match is found for passed code, or if results are otherwise failed to be found
+		// returns error
+		if len(stats) == 0 {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
 		}
-		if neighboursTrue {
-			// sends a request to the cache worker
-			ret := make(chan caching.CacheResponse)
-			request <- caching.CacheRequest{ChannelRef: ret, CountryRequest: []string{code}}
-			result := <-ret
-			// if the request doesn't return not found, it will find those neighbours
-			if result.Status != http.StatusNotFound {
-				//TODO: invocation is put here for testing. Unsure of proper placement.
-				invocation <- result.Neighbours[code]
-				for _, neighbour := range result.Neighbours[code] {
-					statistic, err := dataset.GetStatistic(neighbour)
-					if err == nil {
-						stats = append(stats, statistic)
+		// If a neighbours query has been found, attempts to parse into bool
+		if r.URL.RawQuery != "" {
+			query := r.URL.Query()
+			neighboursTrue, err := strconv.ParseBool(query.Get("neighbours"))
+			if err != nil {
+				http.Error(w, "Bad request, neighbours must equal true or false", http.StatusBadRequest)
+			}
+			if neighboursTrue {
+				// sends a request to the cache worker
+				ret := make(chan caching.CacheResponse)
+				request <- caching.CacheRequest{ChannelRef: ret, CountryRequest: []string{code}}
+				result := <-ret
+				// if the request doesn't return not found, it will find those neighbours
+				if result.Status != http.StatusNotFound {
+					//TODO: invocation is put here for testing. Unsure of proper placement.
+					invocation <- result.Neighbours[code]
+					for _, neighbour := range result.Neighbours[code] {
+						statistic, err := dataset.GetStatistic(neighbour)
+						if err == nil {
+							stats = append(stats, statistic)
+						}
 					}
 				}
 			}
@@ -136,7 +137,7 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, code string, data
 		stats = dataset.GetHistoricStatistics()
 		// if both begin and end queries have been specified, the averages for all countries are
 		// calculated only for that span
-		if begin != 0 && end != 0 {
+		if begin != 0 || end != 0 {
 			for i := range stats {
 				percentage := 0.0
 				percentage, err = dataset.CalculatePercentage(stats[i].Isocode, begin, end)
@@ -241,12 +242,14 @@ func parseHistoricQuery(w http.ResponseWriter, r *http.Request, dataset *util.Co
 		}
 		// Sends error if end year has been set to higher than begin year
 		if begin > end {
-			if code == "" { // if code is empty, the appropriate error message will be returned
-				http.Error(w, "Bad request, begin end must be specified for all countries", http.StatusBadRequest)
+			/*if code == "" { // if code is empty, the appropriate error message will be returned
+				http.Error(w, "Bad request, begin end and must be specified for all countries", http.StatusBadRequest)
 				return 0, 0, sortByValue, errors.New("bad request, begin and end must be specified for all countries")
-			} // if code is not empty
-			http.Error(w, "Bad request, begin must be smaller than end", http.StatusBadRequest)
-			return 0, 0, sortByValue, errors.New("bad request, begin must be smaller than end")
+			} */ // if code is not empty
+			if end != 0 {
+				http.Error(w, "Bad request, begin must be smaller than end", http.StatusBadRequest)
+				return 0, 0, sortByValue, errors.New("bad request, begin must be smaller than end")
+			}
 		} //if no errors have been found, the parsed values are returned
 		return begin, end, sortByValue, nil
 	} else { // no query has been found

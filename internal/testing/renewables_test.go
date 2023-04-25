@@ -25,10 +25,9 @@ const currentPath = consts.RenewablesPath + "current/"
 const historyPath = consts.RenewablesPath + "history/"
 const neighbourAffix = "?neighbours=true"
 
-var wg sync.WaitGroup
-
 // TestRenewables tests the renewables/ endpoint, for both current and history
 func TestRenewables(t *testing.T) {
+	wg := sync.WaitGroup{}
 	// Setup of firebase context and application
 	ctx := context.Background()
 	opt := option.WithCredentialsFile("./sha.json")
@@ -139,24 +138,31 @@ func TestRenewables(t *testing.T) {
 	// the test, including the name, code to be tested and expected code in the first element of the decoded response
 	var tests = []struct {
 		name       string
+		country    string
 		query      string
 		expected   string
 		neighbours int
 	}{
-		{"CHN test", "CHN", "CHN", 6},
-		{"FIN test", "FIN", "FIN", 3},
-		{"KOR test", "KOR", "KOR", 0},
-		{"NOR test", "NOR", "NOR", 3},
-		//{"PRK test", "PRK", "PRK"},
-		{"RUS test", "RUS", "RUS", 11},
-		{"SWE test", "SWE", "SWE", 2},
-		//{"TJK test", "TJK", "TJK"},
-		{"UZB test", "UZB", "UZB", 2},
-		{"VNM test", "VNM", "VNM", 1},
+		{"CHN test", "china", "CHN", "CHN", 6},
+		{"FIN test", "finland", "FIN", "FIN", 3},
+		{"KOR test", "south korea", "KOR", "KOR", 0},
+
+		{"NOR test", "norway", "NOR", "NOR", 3},
+		{"RUS test", "russia", "RUS", "RUS", 11},
+		{"SWE test", "sweden", "SWE", "SWE", 2},
+
+		{"UZB test", "uzbekistan", "UZB", "UZB", 2},
+		{"VNM test", "vietnam", "VNM", "VNM", 1},
+		{"Invalid test", "", "INV", "", 0},
+	}
+
+	err, datasetLength := countryDataset.GetLengthOfDataset()
+	if err != nil {
+		t.Error(err)
 	}
 
 	// runs tests for random countries in historical testHandler
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 5; i++ {
 		randomNumber := rand.Intn(8)
 		t.Run("/history test for country code "+tests[randomNumber].name,
 			runHandlerTest(&wg,
@@ -165,15 +171,43 @@ func TestRenewables(t *testing.T) {
 				true, 1))
 	}
 
-	err, datasetLength := countryDataset.GetLengthOfDataset()
-	if err != nil {
-		t.Error(err)
+	// runs tests for random countries in historical endpoint, querying by name
+	for i := 0; i < 5; i++ {
+		randomNumber := rand.Intn(8)
+		t.Run("/history test for country name "+tests[randomNumber].name,
+			runHandlerTest(&wg,
+				historyPath+tests[randomNumber].country,
+				tests[randomNumber].expected,
+				true, 1))
 	}
-	// runs test for all countries in renewable/history endpoint
-	t.Run("All /current countries test", runHandlerTest(&wg, currentPath, "", true, datasetLength))
 
-	// runs a number of concurrent tests for current endpoint with neighbour query
-	for i := 0; i < 100; i++ {
+	// runs test for all countries in renewable/current endpoint
+	t.Run("All /current countries test",
+		runHandlerTest(&wg,
+			currentPath,
+			"",
+			true, datasetLength))
+	// runs test for all countries in renewable/history endpoint
+	t.Run("All /history countries test",
+		runHandlerTest(&wg,
+			historyPath,
+			"",
+			true, datasetLength))
+	// runs test for all countries in renewable/history endpoint
+	t.Run("All /history countries test, sorted by value",
+		runHandlerTest(&wg,
+			historyPath+"?sortByValue=true",
+			"SAU",
+			true, datasetLength))
+	// runs test for all countries in renewable /history endpoint, with year limitation
+	t.Run("All /history countries test, between 1995 and 2006",
+		runHandlerTest(&wg,
+			historyPath+"?begin=1995&end=2006",
+			"",
+			true, datasetLength))
+
+	// runs a number of tests for current endpoint with neighbour query
+	for i := 0; i < 5; i++ {
 		randomNumber := rand.Intn(8)
 		t.Run("/current test for country code "+tests[randomNumber].name+" with neighbour query",
 			runHandlerTest(&wg,
@@ -181,4 +215,69 @@ func TestRenewables(t *testing.T) {
 				tests[randomNumber].expected,
 				true, 1+tests[randomNumber].neighbours))
 	}
+
+	// runs a number of tests for current endpoint without neighbour query
+	for i := 0; i < 5; i++ {
+		randomNumber := rand.Intn(8)
+		t.Run("current test for country code "+tests[randomNumber].name,
+			runHandlerTest(&wg,
+				currentPath+tests[randomNumber].query,
+				tests[randomNumber].expected,
+				true, 1))
+	}
+
+	// runs tests for random countries in historical endpoint, querying by name
+	for i := 0; i < 5; i++ {
+		randomNumber := rand.Intn(8)
+		t.Run("/current test for country name "+tests[randomNumber].name,
+			runHandlerTest(&wg,
+				currentPath+tests[randomNumber].country,
+				tests[randomNumber].expected,
+				true, 1))
+	}
+
+	// runs a test for beginning year query in history endpoint
+	t.Run("/history test for "+tests[0].name+" with begin query",
+		runHandlerTest(&wg,
+			historyPath+tests[0].query+"?begin=2000",
+			tests[0].expected,
+			true, 1))
+
+	// runs an invalid test for beginning year query in history endpoint
+	t.Run("/history test for "+tests[0].name+" with begin query",
+		runHandlerTest(&wg,
+			historyPath+tests[0].query+"?begin=sljh",
+			"",
+			true, 0))
+
+	// runs a test for end year query in history endpoint
+	t.Run("/history test for "+tests[1].name+" with end query",
+		runHandlerTest(&wg,
+			historyPath+tests[1].query+"?end=2000",
+			tests[1].expected,
+			true, 1))
+
+	// runs a invalid test for end year query in history endpoint
+	t.Run("/history test for "+tests[2].name+" with end query",
+		runHandlerTest(&wg,
+			historyPath+tests[2].query+"?end=erte",
+			"",
+			true, 0))
+
+	// runs an invalid query for current endpoint
+	t.Run(tests[8].name+" for current endpoint",
+		runHandlerTest(&wg,
+			currentPath+tests[8].query,
+			tests[8].expected,
+			true,
+			0))
+
+	// runs an invalid query for history endpoint
+	t.Run(tests[8].name+" for history endpoint",
+		runHandlerTest(&wg,
+			historyPath+tests[8].query,
+			tests[8].expected,
+			true,
+			0))
+
 }

@@ -11,9 +11,6 @@ import (
 	"time"
 )
 
-// StartTime for calculating service uptime
-var StartTime = time.Now()
-
 // ServiceStatus for storage of status data before encoding to json
 type ServiceStatus struct {
 	CountriesApi    string `json:"countries_api"`
@@ -31,7 +28,7 @@ const dbProbeDocument = "dbProbeDocument"
 //const dbProbeValue = http.StatusOK
 
 // HandlerStatus Handler for the status endpoint
-func HandlerStatus(cfg *util.Config) func(http.ResponseWriter, *http.Request) {
+func HandlerStatus(cfg *util.Config, startTime time.Time) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -44,22 +41,12 @@ func HandlerStatus(cfg *util.Config) func(http.ResponseWriter, *http.Request) {
 				countryService = consts.CountryDomain
 			}
 
-			countriesStatus, err := util.GetDomainStatus(countryService)
+			countriesStatus, err := util.GetDomainStatus(countryService +
+				consts.CountryCodePath + "?codes=NOR")
 			if err != nil {
-				http.Error(w, "Error while handling request.", http.StatusInternalServerError)
-				return
+				log.Println("handler status: Failed to close body of get request.")
 			}
 
-			// add a known document to DB
-			// TODO remove when everything works
-			/*
-				probeData := make(map[string]int)
-				probeData["status code"] = dbProbeValue
-				err = fsutils.AddDocumentById(cfg, dbProbeCollection, dbProbeDocument, probeData)
-				if err != nil {
-					log.Println("could not add check document to db")
-				}
-			*/
 			// Read back document with stored status code:
 			notificationStatusCode := make(map[string]int)
 			err = fsutils.ReadDocumentGeneral(cfg, dbProbeCollection, dbProbeDocument, &notificationStatusCode)
@@ -76,13 +63,13 @@ func HandlerStatus(cfg *util.Config) func(http.ResponseWriter, *http.Request) {
 			} else {
 				webhooks = strconv.Itoa(webhookCount)
 			}
-
+			upTime := int(time.Since(startTime).Seconds())
 			serviceStatus := ServiceStatus{
 				CountriesApi:    countriesStatus,
 				NotificationsDb: notificationStatus,
 				Webhooks:        webhooks,
 				Version:         consts.Version,
-				Uptime:          getUptime(),
+				Uptime:          upTime,
 			}
 			// json response to user:
 			util.EncodeAndWriteResponse(&w, serviceStatus)
@@ -91,11 +78,6 @@ func HandlerStatus(cfg *util.Config) func(http.ResponseWriter, *http.Request) {
 			http.Error(w, "http method not supported.", http.StatusMethodNotAllowed)
 		}
 	}
-}
-
-// getUptime returns uptime since last service restart
-func getUptime() int {
-	return int(time.Now().Sub(StartTime).Seconds())
 }
 
 // countWebhooks returns number of stored webhooks in Firebase
