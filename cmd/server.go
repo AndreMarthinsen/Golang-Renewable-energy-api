@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 )
 
 var wg sync.WaitGroup
@@ -75,7 +76,8 @@ func main() {
 		<-doneSignal
 	}()
 	notificationHandler := notifications.HandlerNotification(&config)
-	statusHandler := handlers.HandlerStatus(&config)
+	serviceStartTime := time.Now()
+	statusHandler := handlers.HandlerStatus(&config, serviceStartTime)
 
 	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(&config, requestChannel, &countryDataset, invocation))
 	http.HandleFunc(consts.NotificationPath, notificationHandler)
