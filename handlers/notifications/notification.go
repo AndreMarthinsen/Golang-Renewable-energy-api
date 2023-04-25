@@ -149,7 +149,7 @@ func viewWebhooks(handler *util.HandlerContext, cfg *util.Config, r *http.Reques
 		//TODO: Should it return an array for both branches for consistency?
 		util.EncodeAndWriteResponse(handler.Writer, webhookEntry)
 		return
-	} else {
+	} else if len(segments) == 0 {
 		iter := cfg.FirestoreClient.Collection(cfg.WebhookCollection).Documents(*cfg.Ctx)
 		entries := make([]Webhook, 0)
 		for {
@@ -171,5 +171,10 @@ func viewWebhooks(handler *util.HandlerContext, cfg *util.Config, r *http.Reques
 			) // with DB. Document not existing returns no error.
 		}
 		util.EncodeAndWriteResponse(handler.Writer, entries)
+	} else {
+		http.Error(*handler.Writer,
+			"Invalid path.",
+			http.StatusBadRequest, // Error indicates a failure to communicate
+		) // with DB. Document not existing returns no error.
 	}
 }
