@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	firebase "firebase.google.com/go"
+	"fmt"
 	"golang.org/x/exp/constraints"
 	"google.golang.org/api/option"
 	"log"
@@ -57,6 +58,16 @@ type Country struct {
 	StartYear         int
 	EndYear           int
 	YearlyPercentages map[int]float64
+}
+
+// StatusToString returns a formatted string of the provided error code.
+// Returns empty string if unknown error code.
+func StatusToString(status int) string {
+	statusText := http.StatusText(status)
+	if statusText != "" {
+		return fmt.Sprintf("%d %v", status, http.StatusText(status))
+	}
+	return ""
 }
 
 // SetUpServiceConfig initializes the firestore context and client, then reads configuration

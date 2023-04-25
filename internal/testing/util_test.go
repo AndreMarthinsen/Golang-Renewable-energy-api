@@ -4,6 +4,7 @@ import (
 	"Assignment2/consts"
 	"Assignment2/util"
 	"github.com/stretchr/testify/assert"
+	"net/http"
 	"testing"
 )
 
@@ -24,6 +25,12 @@ func TestConfigInitialize(t *testing.T) {
 	assert.Equal(t, defaultConfig, testConfig)
 	assert.Nil(t, testConfig.Initialize(consts.ConfigPath))
 	assert.Error(t, testConfig.Initialize("/invalid_path"))
+}
+
+func TestStatusToText(t *testing.T) {
+	assert.Equal(t, "200 OK", util.StatusToString(http.StatusOK))
+	assert.Equal(t, "404 Not Found", util.StatusToString(http.StatusNotFound))
+	assert.Equal(t, "", util.StatusToString(3000))
 }
 
 func TestSetUpServiceConfig(t *testing.T) {
