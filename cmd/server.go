@@ -48,7 +48,10 @@ func main() {
 	}
 
 	var config util.Config
-	config.Initialize(consts.ConfigPath)
+	err = config.Initialize(consts.ConfigPath)
+	if err != nil {
+		log.Println(err)
+	}
 	config.FirestoreClient = client
 	config.Ctx = &ctx
 
