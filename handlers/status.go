@@ -41,7 +41,7 @@ func HandlerStatus(cfg *util.Config, startTime time.Time) func(http.ResponseWrit
 				countryService = consts.CountryDomain
 			}
 
-			countriesStatus, err := util.GetDomainStatus2(countryService)
+			countriesStatus, err := util.GetDomainStatus(countryService)
 			if err != nil {
 				log.Println("handler status: Failed to close body of get request.")
 			}
