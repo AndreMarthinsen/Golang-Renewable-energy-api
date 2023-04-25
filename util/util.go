@@ -65,9 +65,9 @@ type Country struct {
 //
 // On success: Config struct with valid firestore pointers, nil
 // On failure: Config with nil pointers, error
-func SetUpServiceConfig(configPath string) (Config, error) {
+func SetUpServiceConfig(configPath string, credentials string) (Config, error) {
 	ctx := context.Background()
-	opt := option.WithCredentialsFile("./cmd/sha.json")
+	opt := option.WithCredentialsFile(credentials)
 	app, err := firebase.NewApp(ctx, nil, opt)
 	if err != nil {
 		return Config{}, err

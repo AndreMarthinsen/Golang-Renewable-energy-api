@@ -22,9 +22,33 @@ func TestConfigInitialize(t *testing.T) {
 		WebhookEventRate:  util.SettingsWebhookEventRate,
 	}
 	assert.Equal(t, defaultConfig, testConfig)
+	assert.Nil(t, testConfig.Initialize(consts.ConfigPath))
+	assert.Error(t, testConfig.Initialize("/invalid_path"))
+}
 
-	testConfig = util.Config{}
-	testConfig.Initialize(consts.ConfigPath)
+func TestSetUpServiceConfig(t *testing.T) {
+	panicTest := func(cfg *util.Config) func() {
+		return func() {
+			// panic on nil pointer dereference
+			err := cfg.FirestoreClient.Close()
+			if err != nil {
+				t.Error(err)
+			}
+		}
+	}
+
+	config, err := util.SetUpServiceConfig("/invalid/path", "./sha.json")
+	assert.Nil(t, err)
+	assert.NotPanics(t, panicTest(&config), config)
+
+	config, err = util.SetUpServiceConfig(consts.ConfigPath, "./invalid_creds.json")
+	assert.Error(t, err)
+	assert.Panics(t, panicTest(&config), config)
+
+	config, err = util.SetUpServiceConfig(consts.ConfigPath, "./sha.json")
+	assert.Nil(t, err)
+	assert.NotPanics(t, panicTest(&config))
+
 }
 
 func TestMax(t *testing.T) {
