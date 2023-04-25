@@ -1,27 +1,22 @@
 services:
   #name of service (in Docker context):
   renewables:
+
     # build based on "Dockerfile" in current dir:
     build: 
       context: .
       dockerfile: Dockerfile2
+
     # mount volumes located in VM on container(s):
     volumes:
       # credentials:
       # mounts as original cmd directory
       - /home/ubuntu/.secret:/cmd/:ro
-      # data set:
-      # mounts as original internal directory
-      #- /home/ubuntu/data:/internal/assets/:ro
-    
-    # env variables to access the shared files:
-    # TODO remove if unnecessary
-    #  - FIREBASE_CONFIG=${configFile}
-    #  - ENERGY_DATASET=${dataSet}
     
     # port mapping (remote:local)
     ports:
       - '8080:10000'
+
     # restart service at VM reboot:
     restart: always
 

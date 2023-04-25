@@ -36,12 +36,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o /en
 # expose port (not strictly necessary):
 EXPOSE 8080
 
-#run container as non-root user:
-#USER nonroot:nonroot
-
-# run container as executable:
+# set working dir to get access to mounted volumes:
 WORKDIR /
 
-
-
+# run executable from container root:
 ENTRYPOINT ["/energy"]
