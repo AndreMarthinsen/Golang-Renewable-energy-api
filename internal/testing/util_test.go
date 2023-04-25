@@ -115,14 +115,14 @@ func TestGetDomainStatus(t *testing.T) {
 		{
 			name:         "Timeout error",
 			URL:          "https://www.slowserver.com",
-			expected:     "timed out contacting service",
+			expected:     "408 Request Timeout",
 			timeout:      true,
 			shouldLogErr: true,
 		},
 		{
 			name:         "Protocol error",
 			URL:          "https://www.notarealwebsite12345.com",
-			expected:     "protocol error",
+			expected:     "503 Service Unavailable",
 			timeout:      false,
 			shouldLogErr: true,
 		},
