@@ -4,8 +4,11 @@
 package util
 
 import (
+	"context"
 	"encoding/json"
+	firebase "firebase.google.com/go"
 	"golang.org/x/exp/constraints"
+	"google.golang.org/api/option"
 	"io"
 	"log"
 	// "os"
@@ -53,6 +56,35 @@ type Country struct {
 	StartYear         int
 	EndYear           int
 	YearlyPercentages map[int]float64
+}
+
+// SetUpServiceConfig initializes the firestore context and client, then reads configuration
+// settings from file. In the event of no config file being found, default settings will
+// be used. Failure to find a config file will be logged, but does not trigger an error.
+// Only failing to set up the firestore context and client will lead to a fail/error.
+//
+// On success: Config struct with valid firestore pointers, nil
+// On failure: Config with nil pointers, error
+func SetUpServiceConfig(configPath string) (Config, error) {
+	ctx := context.Background()
+	opt := option.WithCredentialsFile("./cmd/sha.json")
+	app, err := firebase.NewApp(ctx, nil, opt)
+	if err != nil {
+		return Config{}, err
+	}
+	client, err := app.Firestore(ctx)
+	if err != nil {
+		return Config{}, err
+	}
+
+	var config Config
+	err = config.Initialize(configPath)
+	if err != nil { // Allowable error, running service with default config.
+		log.Println(err)
+	}
+	config.FirestoreClient = client
+	config.Ctx = &ctx
+	return config, nil
 }
 
 // FragmentsFromPath takes an incoming URL path and the path of a handler, removing the handler portion

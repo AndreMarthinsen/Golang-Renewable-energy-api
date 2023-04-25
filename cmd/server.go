@@ -7,9 +7,6 @@ import (
 	"Assignment2/handlers/notifications"
 	"Assignment2/internal/stubbing"
 	"Assignment2/util"
-	"context"
-	firebase "firebase.google.com/go"
-	"google.golang.org/api/option"
 	"log"
 	"net/http"
 	"os"
@@ -24,9 +21,7 @@ func main() {
 	var countryDataset util.CountryDataset
 	err := countryDataset.Initialize(consts.DataSetPath)
 	if err != nil {
-		// TODO: log an internal server error instead
-		log.Fatal(err)
-		return
+		log.Fatal("service startup: ", err)
 	}
 
 	port := os.Getenv("PORT")
@@ -35,25 +30,10 @@ func main() {
 		port = consts.DefaultPort
 	}
 
-	ctx := context.Background()
-	opt := option.WithCredentialsFile("./cmd/sha.json")
-	app, err := firebase.NewApp(ctx, nil, opt)
+	config, err := util.SetUpServiceConfig(consts.ConfigPath)
 	if err != nil {
-		log.Fatal("main: failed to to create new app", err)
+		log.Fatal("service startup: unable to utilize firebase: ", err)
 	}
-
-	client, err := app.Firestore(ctx)
-	if err != nil {
-		log.Fatal("main: failed to set up firestore client:", err)
-	}
-
-	var config util.Config
-	err = config.Initialize(consts.ConfigPath)
-	if err != nil {
-		log.Println(err)
-	}
-	config.FirestoreClient = client
-	config.Ctx = &ctx
 
 	// Stub server setup
 	stubStop := make(chan struct{})
