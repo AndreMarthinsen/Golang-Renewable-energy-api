@@ -25,10 +25,9 @@ const currentPath = consts.RenewablesPath + "current/"
 const historyPath = consts.RenewablesPath + "history/"
 const neighbourAffix = "?neighbours=true"
 
-var wg sync.WaitGroup
-
 // TestRenewables tests the renewables/ endpoint, for both current and history
 func TestRenewables(t *testing.T) {
+	wg := sync.WaitGroup{}
 	// Setup of firebase context and application
 	ctx := context.Background()
 	opt := option.WithCredentialsFile("./sha.json")

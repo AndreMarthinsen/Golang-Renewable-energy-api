@@ -41,17 +41,11 @@ func HandlerStatus(cfg *util.Config, startTime time.Time) func(http.ResponseWrit
 				countryService = consts.CountryDomain
 			}
 
-			countriesStatus, err := util.GetDomainStatus(countryService)
+			countriesStatus, err := util.GetDomainStatus(countryService +
+				consts.CountryCodePath + "?codes=NOR")
 			if err != nil {
 				log.Println("handler status: Failed to close body of get request.")
 			}
-			/*
-				countriesStatus, err := util.GetDomainStatus(countryService)
-					if err != nil {
-						http.Error(w, "Error while handling request.", http.StatusInternalServerError)
-						return
-					}
-			*/
 
 			// Read back document with stored status code:
 			notificationStatusCode := make(map[string]int)
