@@ -1,9 +1,8 @@
-package testing
+package handlers
 
 import (
 	"Assignment2/caching"
 	"Assignment2/consts"
-	"Assignment2/handlers"
 	"Assignment2/internal/stubbing"
 	"Assignment2/util"
 	"encoding/json"
@@ -17,8 +16,8 @@ import (
 )
 
 // Internal paths
-const currentPath = consts.RenewablesPath + "current/"
-const historyPath = consts.RenewablesPath + "history/"
+const currentTestPath = consts.RenewablesPath + "current/"
+const historyTestPath = consts.RenewablesPath + "history/"
 const neighbourAffix = "?neighbours=true"
 
 // TestRenewables tests the renewables/ endpoint, for both current and history
@@ -27,12 +26,12 @@ func TestRenewables(t *testing.T) {
 
 	// Initialization of dataset from CSV
 	var countryDataset util.CountryDataset
-	err := countryDataset.Initialize(consts.DataSetPath)
+	err := countryDataset.Initialize("." + consts.DataSetPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 	// sets up the server configuration
-	config, err := util.SetUpServiceConfig(consts.ConfigPath, "sha.json")
+	config, err := util.SetUpServiceConfig("."+consts.ConfigPath, "../cmd/sha.json")
 	if err != nil {
 		log.Fatal("service startup: unable to utilize firebase: ", err)
 	}
@@ -62,7 +61,7 @@ func TestRenewables(t *testing.T) {
 	go caching.InvocationWorker(&config, invocationStop, invocationDone, &countryDataset, invocations)
 
 	// Injection of dependencies into the handler
-	testHandler := handlers.HandlerRenew(requests, &countryDataset, invocations)
+	testHandler := HandlerRenew(requests, &countryDataset, invocations)
 
 	runHandlerTest := func(wg *sync.WaitGroup, query string, expectedCode string, routine bool, expectedLength int) func(*testing.T) {
 		return func(t *testing.T) {
@@ -146,7 +145,7 @@ func TestRenewables(t *testing.T) {
 		randomNumber := rand.Intn(8)
 		t.Run("/history test for country code "+tests[randomNumber].name,
 			runHandlerTest(&wg,
-				historyPath+tests[randomNumber].query,
+				historyTestPath+tests[randomNumber].query,
 				tests[randomNumber].expected,
 				true, 1))
 	}
@@ -156,7 +155,7 @@ func TestRenewables(t *testing.T) {
 		randomNumber := rand.Intn(8)
 		t.Run("/history test for country name "+tests[randomNumber].name,
 			runHandlerTest(&wg,
-				historyPath+tests[randomNumber].country,
+				historyTestPath+tests[randomNumber].country,
 				tests[randomNumber].expected,
 				true, 1))
 	}
@@ -164,25 +163,25 @@ func TestRenewables(t *testing.T) {
 	// runs test for all countries in renewable/current endpoint
 	t.Run("All /current countries test",
 		runHandlerTest(&wg,
-			currentPath,
+			currentTestPath,
 			"",
 			true, datasetLength))
 	// runs test for all countries in renewable/history endpoint
 	t.Run("All /history countries test",
 		runHandlerTest(&wg,
-			historyPath,
+			historyTestPath,
 			"",
 			true, datasetLength))
 	// runs test for all countries in renewable/history endpoint
 	t.Run("All /history countries test, sorted by value",
 		runHandlerTest(&wg,
-			historyPath+"?sortByValue=true",
+			historyTestPath+"?sortByValue=true",
 			"SAU",
 			true, datasetLength))
 	// runs test for all countries in renewable /history endpoint, with year limitation
 	t.Run("All /history countries test, between 1995 and 2006",
 		runHandlerTest(&wg,
-			historyPath+"?begin=1995&end=2006",
+			historyTestPath+"?begin=1995&end=2006",
 			"",
 			true, datasetLength))
 
@@ -191,7 +190,7 @@ func TestRenewables(t *testing.T) {
 		randomNumber := rand.Intn(8)
 		t.Run("/current test for country code "+tests[randomNumber].name+" with neighbour query",
 			runHandlerTest(&wg,
-				currentPath+tests[randomNumber].query+neighbourAffix,
+				currentTestPath+tests[randomNumber].query+neighbourAffix,
 				tests[randomNumber].expected,
 				true, 1+tests[randomNumber].neighbours))
 	}
@@ -201,7 +200,7 @@ func TestRenewables(t *testing.T) {
 		randomNumber := rand.Intn(8)
 		t.Run("current test for country code "+tests[randomNumber].name,
 			runHandlerTest(&wg,
-				currentPath+tests[randomNumber].query,
+				currentTestPath+tests[randomNumber].query,
 				tests[randomNumber].expected,
 				true, 1))
 	}
@@ -211,7 +210,7 @@ func TestRenewables(t *testing.T) {
 		randomNumber := rand.Intn(8)
 		t.Run("/current test for country name "+tests[randomNumber].name,
 			runHandlerTest(&wg,
-				currentPath+tests[randomNumber].country,
+				currentTestPath+tests[randomNumber].country,
 				tests[randomNumber].expected,
 				true, 1))
 	}
@@ -219,35 +218,35 @@ func TestRenewables(t *testing.T) {
 	// runs a test for beginning year query in history endpoint
 	t.Run("/history test for "+tests[0].name+" with begin query",
 		runHandlerTest(&wg,
-			historyPath+tests[0].query+"?begin=2000",
+			historyTestPath+tests[0].query+"?begin=2000",
 			tests[0].expected,
 			true, 1))
 
 	// runs an invalid test for beginning year query in history endpoint
 	t.Run("/history test for "+tests[0].name+" with begin query",
 		runHandlerTest(&wg,
-			historyPath+tests[0].query+"?begin=sljh",
+			historyTestPath+tests[0].query+"?begin=sljh",
 			"",
 			true, 0))
 
 	// runs a test for end year query in history endpoint
 	t.Run("/history test for "+tests[1].name+" with end query",
 		runHandlerTest(&wg,
-			historyPath+tests[1].query+"?end=2000",
+			historyTestPath+tests[1].query+"?end=2000",
 			tests[1].expected,
 			true, 1))
 
 	// runs a invalid test for end year query in history endpoint
 	t.Run("/history test for "+tests[2].name+" with end query",
 		runHandlerTest(&wg,
-			historyPath+tests[2].query+"?end=erte",
+			historyTestPath+tests[2].query+"?end=erte",
 			"",
 			true, 0))
 
 	// runs an invalid query for current endpoint
 	t.Run(tests[8].name+" for current endpoint",
 		runHandlerTest(&wg,
-			currentPath+tests[8].query,
+			currentTestPath+tests[8].query,
 			tests[8].expected,
 			true,
 			0))
@@ -255,22 +254,16 @@ func TestRenewables(t *testing.T) {
 	// runs an invalid query for history endpoint
 	t.Run(tests[8].name+" for history endpoint",
 		runHandlerTest(&wg,
-			historyPath+tests[8].query,
+			historyTestPath+tests[8].query,
 			tests[8].expected,
 			true,
 			0))
 }
 
 func TestSortSlice(t *testing.T) {
-	var dataset util.CountryDataset
-	err := dataset.Initialize(consts.DataSetPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	runTest := func(stats []util.RenewableStatistics, firstExpected util.RenewableStatistics) func(t *testing.T) {
 		return func(t *testing.T) {
-			stats = handlers.SortStatistics(stats)
+			stats = SortStatistics(stats)
 			if stats[0] != firstExpected {
 				t.Errorf("Unexpected sorted result, got #{stats[0]} but expected #{firstExpected}")
 			}
