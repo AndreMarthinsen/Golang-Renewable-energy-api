@@ -65,11 +65,11 @@ func main() {
 	notificationHandler := notifications.HandlerNotification(&config, &countryDataset)
 	serviceStartTime := time.Now()
 	statusHandler := handlers.HandlerStatus(&config, serviceStartTime)
-
+	http.HandleFunc("/energy/v1/usage", handlers.InfoHandler)
+	http.HandleFunc("/", handlers.InvalidPathHandler)
 	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(requestChannel, &countryDataset, invocation))
 	http.HandleFunc(consts.NotificationPath, notificationHandler)
 	http.HandleFunc(consts.StatusPath, statusHandler)
-
 	log.Println("main: service listening on port " + port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 	// stub service can now be stopped with: stubStop <- struct{}{}
