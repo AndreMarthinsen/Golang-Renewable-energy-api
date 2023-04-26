@@ -149,7 +149,7 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, code string, data
 			}
 		}
 		if sortByValue {
-			stats = sortStatistics(stats)
+			stats = SortStatistics(stats)
 		}
 	} else { //if code is not empty
 		if len(code) > 3 {
@@ -179,7 +179,7 @@ func handlerHistorical(w http.ResponseWriter, r *http.Request, code string, data
 		// if not set by user, it will be from the first to the last year in the dataset
 		stats = dataset.GetStatisticsRange(code, begin, end)
 		if sortByValue {
-			stats = sortStatistics(stats)
+			stats = SortStatistics(stats)
 		}
 	}
 	if len(stats) == 0 { // if no results have been found
@@ -256,8 +256,8 @@ func parseHistoricQuery(r *http.Request, dataset *util.CountryDataset, code stri
 	}
 }
 
-// sortStatistics sorts a slice of renewableStatistics by their percentage of renewable energy
-func sortStatistics(statistics []util.RenewableStatistics) []util.RenewableStatistics {
+// SortStatistics sorts a slice of renewableStatistics by their percentage of renewable energy
+func SortStatistics(statistics []util.RenewableStatistics) []util.RenewableStatistics {
 	sort.Slice(statistics, func(i, j int) bool {
 		return statistics[i].Percentage < statistics[j].Percentage
 	})
