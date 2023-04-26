@@ -5,7 +5,7 @@ services:
     # build based on "Dockerfile" in current dir:
     build: 
       context: .
-      dockerfile: Dockerfile2
+      dockerfile: Dockerfile
 
     # mount volumes located on VM to container(s):
     volumes:
