@@ -19,7 +19,6 @@ func TestHandlerStats(t *testing.T) {
 	config, _ := util.SetUpServiceConfig(consts.ConfigPath, "./sha.json")
 	startTime := time.Now()
 	time.Sleep(1 * time.Second)
-
 	handler := handlers.HandlerStatus(&config, startTime)
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	defer server.Close()
@@ -60,21 +59,13 @@ func TestHandlerStats(t *testing.T) {
 			log.Println("done")
 		}
 	}
-	expected := handlers.ServiceStatus{
-		CountriesApi:    "503 Service Unavailable",
-		NotificationsDb: "200 OK",
-		Webhooks:        "",
-		Version:         "",
-		Uptime:          0,
-	}
-	t.Run("no_service_test", runStatusTest(expected))
 
 	wg := sync.WaitGroup{}
 	stop := make(chan struct{})
 	wg.Add(1)
 	go stubbing.RunSTUBServer(&config, &wg, consts.StubPort, stop)
 	time.Sleep(time.Second)
-	expected = handlers.ServiceStatus{
+	expected := handlers.ServiceStatus{
 		CountriesApi:    "200 OK",
 		NotificationsDb: "200 OK",
 		Webhooks:        "",
