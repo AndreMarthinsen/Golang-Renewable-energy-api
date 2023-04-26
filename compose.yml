@@ -5,14 +5,14 @@ services:
     # build based on "Dockerfile" in current dir:
     build: 
       context: .
-      dockerfile: Dockerfile2
+      dockerfile: Dockerfile
 
-    # mount volumes located in VM on container(s):
+    # mount volumes located on VM to container(s):
     volumes:
       # credentials:
-      # mounts as original cmd directory
       - ~/.secret:/cmd/:ro
-      - ./config:/config/:ro
+      # config file for customizing the service:
+      - ~/config:/config/:ro
     
     # port mapping (remote:local)
     ports:
