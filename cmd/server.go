@@ -39,7 +39,7 @@ func main() {
 	stubStop := make(chan struct{})
 	if config.DevelopmentMode {
 		wg.Add(1)
-		go stubbing.RunSTUBServer(&config, &wg, consts.StubPort, stubStop)
+		go stubbing.RunSTUBServer(&config, &wg, "./internal/assets/", consts.StubPort, stubStop)
 	}
 
 	// Invocation worker setup

@@ -16,7 +16,6 @@ import (
 	"sync"
 )
 
-const assetPrefix = "./internal/assets/"
 const codesPrefix = "codes="
 
 // For future reference https://www.iban.com/country-codes
@@ -42,7 +41,7 @@ func parseFile(filePath string) []byte {
 // Example:
 // http://localhost:8888/v3.1/alpha/?codes=NOR,KOR
 // Returns json file containing data for Norway and South Korea
-func StubHandler(cfg *util.Config) func(http.ResponseWriter, *http.Request) {
+func StubHandler(cfg *util.Config, filePath string) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("content-type", "application/json")
 		path := r.URL.Path
@@ -66,7 +65,7 @@ func StubHandler(cfg *util.Config) func(http.ResponseWriter, *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			response, err := getJsonByCountryCode(codes)
+			response, err := getJsonByCountryCode(codes, filePath)
 			if err != nil {
 				response = "{\"status\":404,\"message\":\"Not Found\"}"
 				w.WriteHeader(http.StatusNotFound)
@@ -89,10 +88,10 @@ func StubHandler(cfg *util.Config) func(http.ResponseWriter, *http.Request) {
 // WARNING: For any simulated response there must be a .json file in the /internal/assets directory.
 // For the simulation of invalid requests, use an empty .json file, such as codes=INV.json
 // Attempting to read a non-existing file will intentionally crash the application.
-func getJsonByCountryCode(countryCodes []string) (string, error) {
+func getJsonByCountryCode(countryCodes []string, filePath string) (string, error) {
 	countryData := make([]string, 0)
 	for _, code := range countryCodes {
-		data := string(parseFile(assetPrefix + codesPrefix + code + ".json"))
+		data := string(parseFile(filePath + codesPrefix + code + ".json"))
 		if len(data) >= 2 {
 			data = strings.TrimPrefix(strings.TrimSuffix(data, "]"), "[")
 			countryData = append(countryData, data)
@@ -119,14 +118,14 @@ func filterCountryCodes(countryCodes []string) []string {
 
 // RunSTUBServer runs a stubbing service using the net/http module.
 // See StubHandler for closer detail on what stubbing is provided by the service.
-func RunSTUBServer(cfg *util.Config, group *sync.WaitGroup, port string, stop chan struct{}) {
+func RunSTUBServer(cfg *util.Config, group *sync.WaitGroup, path string, port string, stop chan struct{}) {
 	defer group.Done()
 
 	log.Println("stub: service running on port", port)
 
 	server := http.Server{
 		Addr:    ":" + port,
-		Handler: http.HandlerFunc(StubHandler(cfg)),
+		Handler: http.HandlerFunc(StubHandler(cfg, path)),
 	}
 
 	go func() {

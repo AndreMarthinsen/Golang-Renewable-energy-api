@@ -1,8 +1,7 @@
-package testing
+package stubbing
 
 import (
 	"Assignment2/consts"
-	"Assignment2/internal/stubbing"
 	"Assignment2/util"
 	"context"
 	"encoding/json"
@@ -13,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -35,7 +35,7 @@ type country struct {
 // TestHttpStubbing tests the StubHandler of the stub service.
 func TestHttpStubbing(t *testing.T) {
 	ctx := context.Background()
-	opt := option.WithCredentialsFile("./sha.json")
+	opt := option.WithCredentialsFile(".../cmd/sha.json")
 	app, err := firebase.NewApp(ctx, nil, opt)
 	if err != nil {
 		log.Fatal("failed to to create new app")
@@ -57,7 +57,8 @@ func TestHttpStubbing(t *testing.T) {
 		PrimaryCache:      "TestData",
 	}
 
-	handler := stubbing.StubHandler(&config)
+	handler := StubHandler(&config, "../assets/")
+	log.Println(os.Getwd())
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	defer server.Close()
 
