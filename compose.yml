@@ -1,0 +1,23 @@
+services:
+  #name of service (in Docker context):
+  renewables:
+
+    # build based on "Dockerfile" in current dir:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+
+    # mount volumes located on VM to container(s):
+    volumes:
+      # credentials:
+      - ~/.secret:/cmd/:ro
+      # config file for customizing the service:
+      - ~/config:/config/:ro
+    
+    # port mapping (remote:local)
+    ports:
+      - '8080:10000'
+
+    # restart service at VM reboot:
+    restart: always
+

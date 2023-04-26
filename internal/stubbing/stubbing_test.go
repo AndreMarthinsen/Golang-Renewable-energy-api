@@ -1,16 +1,22 @@
-package testing
+package stubbing
 
 import (
 	"Assignment2/consts"
-	"Assignment2/internal/stubbing"
+	"Assignment2/util"
+	"context"
 	"encoding/json"
+	"firebase.google.com/go"
 	"fmt"
+	"google.golang.org/api/option"
 	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 // Country struct for testing purposes. Add fields as seen fit, but do not remove any
@@ -29,11 +35,35 @@ type country struct {
 
 // TestHttpStubbing tests the StubHandler of the stub service.
 func TestHttpStubbing(t *testing.T) {
-	handler := stubbing.StubHandler(false)
+	ctx := context.Background()
+	opt := option.WithCredentialsFile("../assets/sha.json")
+	app, err := firebase.NewApp(ctx, nil, opt)
+	if err != nil {
+		log.Fatal("failed to to create new app")
+	}
+
+	client, err := app.Firestore(ctx)
+	if err != nil {
+		log.Fatal("Failed to set up caching client")
+	}
+
+	config := util.Config{
+		CachePushRate:     5 * time.Second,
+		CacheTimeLimit:    30 * time.Minute,
+		DebugMode:         false,
+		DevelopmentMode:   true,
+		Ctx:               &ctx,
+		FirestoreClient:   client,
+		CachingCollection: "Caches",
+		PrimaryCache:      "TestData",
+	}
+
+	handler := StubHandler(&config, "../assets/")
+	log.Println(os.Getwd())
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	defer server.Close()
 
-	client := http.Client{}
+	httpClient := http.Client{}
 
 	fmt.Println("http test server running with url:" + server.URL)
 
@@ -45,7 +75,7 @@ func TestHttpStubbing(t *testing.T) {
 			countries := make([]country, 0)
 			url := server.URL + consts.CountryCodePath + "?codes=" + strings.Join(countryCodes, ",")
 			request, err := http.NewRequest(http.MethodGet, url, nil)
-			response, err := client.Do(request)
+			response, err := httpClient.Do(request)
 			if err != nil {
 				t.Error(err.Error())
 			}
@@ -92,4 +122,19 @@ func TestHttpStubbing(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, runStubHandlerTest(tt.queries, tt.expected))
 	}
+}
+
+func TestRunSTUBServer(t *testing.T) {
+	var config util.Config
+	wg := sync.WaitGroup{}
+	err := config.Initialize("../assets/config.yaml")
+	if err != nil {
+		t.Error(err)
+	}
+	stubStop := make(chan struct{})
+	if config.DevelopmentMode {
+		wg.Add(1)
+		go RunSTUBServer(&config, &wg, "./internal/assets/", consts.StubPort, stubStop)
+	}
+	stubStop <- struct{}{}
 }

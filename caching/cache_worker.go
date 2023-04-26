@@ -36,14 +36,17 @@ func RunCacheWorker(cfg *util.Config, requests chan CacheRequest, stop <-chan st
 	// Main request-handling loop. Runs until a stop signal is received or request channel is closed.
 	for {
 		select {
-		case <-time.After(time.Second * 5):
+		case <-time.After(cfg.CachePushRate):
 			if cacheUpdated {
+				util.LogOnDebug(cfg, "cache worker: handling updates")
 				// Updates external Cache file by overwriting
 				err := fsutils.AddDocumentById(cfg, cfg.CachingCollection, cfg.PrimaryCache, &localCache)
 				if err != nil {
 					log.Println("cache worker: failed to update cache in DB on periodic update")
 				}
 				cacheUpdated = false
+			} else {
+				util.LogOnDebug(cfg, "cache worker: no updates")
 			}
 		case <-stop: // Signal received on stop channel, shutting down worker.
 			// Writes to primary cache in db before shutting down
@@ -53,7 +56,7 @@ func RunCacheWorker(cfg *util.Config, requests chan CacheRequest, stop <-chan st
 			}
 			cleanupDone <- struct{}{}
 			return
-		case probe, ok := <-requests: // Either request has been received or channel is closed
+		case val, ok := <-requests: // Either request has been received or channel is closed
 			if !ok {
 				log.Println("Cache worker lost contact with request channel.\n" +
 					"Running cleanup routine and shutting down cache worker.")
@@ -64,35 +67,29 @@ func RunCacheWorker(cfg *util.Config, requests chan CacheRequest, stop <-chan st
 				cleanupDone <- struct{}{}
 				return
 			}
-			requests <- probe // value is put back into channel
-			notDone := true
-			for notDone {
-				select {
-				case val, _ := <-requests:
-					response := CacheResponse{Status: http.StatusOK, Neighbours: map[string][]string{}}
-					misses := make([]string, 0)
-					for _, code := range val.CountryRequest {
-						cacheResult, ok := localCache[code]
-						if ok {
-							response.Neighbours[code] = cacheResult.Borders
-						} else {
-							misses = append(misses, code)
-						}
-					}
-					if len(misses) == 0 {
-						if cfg.DebugMode {
-							log.Println("returning response")
-						}
-						val.ChannelRef <- response
-					} else { // Some misses, will be handled when default case occurs
-						val.CountryRequest = misses
-						cacheMisses = append(cacheMisses, CacheMiss{Request: val, Response: response})
-					}
-				default:
-					notDone = false
+			util.LogOnDebug(cfg, "cache worker: got a request")
+			response := CacheResponse{Status: http.StatusOK, Neighbours: map[string][]string{}}
+			misses := make([]string, 0)
+			for _, code := range val.CountryRequest {
+				cacheResult, ok := localCache[code]
+				if ok {
+					response.Neighbours[code] = cacheResult.Borders
+				} else {
+					misses = append(misses, code)
 				}
 			}
+			if len(misses) == 0 {
+				if cfg.DebugMode {
+					log.Println("cache worker dbg: returning response")
+				}
+				val.ChannelRef <- response
+			} else { // Some misses, will be handled when default case occurs
+				val.CountryRequest = misses
+				cacheMisses = append(cacheMisses, CacheMiss{Request: val, Response: response})
+			}
+
 			if len(cacheMisses) != 0 {
+				util.LogOnDebug(cfg, "handling ", len(cacheMisses), " cachemisses")
 				// Any cache misses are checked against the external api.
 				// Any valid results are added to the local cache.
 				cacheUpdated = updateLocalCache(cfg, &client, &localCache, cacheMisses) || cacheUpdated

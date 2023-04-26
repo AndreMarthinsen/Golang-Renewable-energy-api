@@ -1,7 +1,6 @@
-package testing
+package caching
 
 import (
-	"Assignment2/caching"
 	"Assignment2/consts"
 	"Assignment2/internal/stubbing"
 	"Assignment2/util"
@@ -16,12 +15,12 @@ import (
 )
 
 func TestRunCacheWorker(t *testing.T) {
-	requests := make(chan caching.CacheRequest, 10)
+	requests := make(chan CacheRequest, 10)
 
-	runCacheTest := func(codes []string, expected caching.CacheResponse) func(*testing.T) {
+	runCacheTest := func(codes []string, expected CacheResponse) func(*testing.T) {
 		return func(t *testing.T) {
-			ret := make(chan caching.CacheResponse)
-			requests <- caching.CacheRequest{ChannelRef: ret, CountryRequest: codes}
+			ret := make(chan CacheResponse)
+			requests <- CacheRequest{ChannelRef: ret, CountryRequest: codes}
 			result := <-ret
 			if result.Status != expected.Status {
 				t.Error("Expected status ", expected.Status, ", got ", result.Status)
@@ -34,7 +33,7 @@ func TestRunCacheWorker(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	opt := option.WithCredentialsFile("./sha.json")
+	opt := option.WithCredentialsFile("../cmd/sha.json")
 	app, err := firebase.NewApp(ctx, nil, opt)
 	if err != nil {
 		log.Fatal("failed to to create new app")
@@ -61,35 +60,35 @@ func TestRunCacheWorker(t *testing.T) {
 	wg := sync.WaitGroup{}
 	defer wg.Wait()
 
-	go stubbing.RunSTUBServer(&wg, consts.StubPort, stop)
-	go caching.RunCacheWorker(&config, requests, stop, done)
+	go stubbing.RunSTUBServer(&config, &wg, "../internal/assets/", consts.StubPort, stop)
+	go RunCacheWorker(&config, requests, stop, done)
 
 	time.Sleep(time.Second * 1)
 	tests := []struct {
 		name     string
 		queries  []string
-		expected caching.CacheResponse
+		expected CacheResponse
 	}{
 		{"test_1", []string{"NOR", "K"},
-			caching.CacheResponse{
+			CacheResponse{
 				Status:     http.StatusOK,
 				Neighbours: map[string][]string{"NOR": {"FIN", "SWE", "RUS"}},
 			},
 		},
 		{"test_2", []string{"INVALID", "K"},
-			caching.CacheResponse{
+			CacheResponse{
 				Status:     http.StatusNotFound,
 				Neighbours: map[string][]string{},
 			},
 		},
 		{"test_3", []string{"NOR", "KOR"},
-			caching.CacheResponse{
+			CacheResponse{
 				Status:     http.StatusOK,
 				Neighbours: map[string][]string{"NOR": {"FIN", "SWE", "RUS"}, "KOR": {"PRK"}},
 			},
 		},
 		{"test_3", []string{"S", "KOR"},
-			caching.CacheResponse{
+			CacheResponse{
 				Status:     http.StatusOK,
 				Neighbours: map[string][]string{"KOR": {"PRK"}},
 			},
@@ -99,5 +98,33 @@ func TestRunCacheWorker(t *testing.T) {
 		t.Run(tt.name, runCacheTest(tt.queries, tt.expected))
 	}
 	time.Sleep(config.CachePushRate * 2)
+
+}
+
+func TestInvocationWorker(t *testing.T) {
+	config, err := util.SetUpServiceConfig("../config/config.yaml", "../cmd/sha.json")
+	if err != nil {
+		t.Error(err)
+	}
+
+	var countryDB util.CountryDataset
+	err = countryDB.Initialize("../internal/assets/renewable-share-energy.csv")
+	if err != nil {
+		t.Error(err)
+	}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	invocations := make(chan []string, 10)
+
+	go InvocationWorker(&config, stop, done, &countryDB, invocations)
+	countries := []string{"NOR", "SWE", "RUS", "GER"}
+	invocations <- countries
+	log.Println("sleeping")
+	//time.Sleep(config.WebhookEventRate)
+	log.Println("done sleeping")
+	stop <- struct{}{}
+	log.Println("awaiting done signal")
+	<-done
+	log.Println("past the done signal")
 
 }

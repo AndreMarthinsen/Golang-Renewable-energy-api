@@ -10,25 +10,12 @@ import (
 	"google.golang.org/grpc/status"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
-// Webhook provides the json structure for the expected request
-// body of a webhook registration.
-type Webhook struct {
-	URL     string `json:"url"`
-	Country string `json:"country"`
-	Calls   int32  `json:"calls"`
-}
-
-// WebhookRegResp provides the json structure of the response body
-// upon registration of a valid webhook.
-type WebhookRegResp struct {
-	WebhookId string `json:"webhook_id"`
-}
-
-// HandlerNotification The handler for the notification endpoint
-func HandlerNotification(cfg *util.Config) func(w http.ResponseWriter, r *http.Request) {
+// NotificationHandler The handler for the notification endpoint
+func NotificationHandler(cfg *util.Config, countryDB *util.CountryDataset) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("content-type", "application/json")
 		client := &http.Client{Timeout: 10 * time.Second}
@@ -38,7 +25,7 @@ func HandlerNotification(cfg *util.Config) func(w http.ResponseWriter, r *http.R
 
 		switch r.Method {
 		case http.MethodPost:
-			registerWebhook(ctx, cfg, r)
+			registerWebhook(ctx, cfg, r, countryDB)
 		case http.MethodGet:
 			viewWebhooks(ctx, cfg, r)
 		case http.MethodDelete:
@@ -58,38 +45,72 @@ func HandlerNotification(cfg *util.Config) func(w http.ResponseWriter, r *http.R
 //	   "calls": 5 <-- should trigger every five calls
 //	}
 //
-// and provides a response:
+// and provides a response upon a successful registration in the firebase DB:
 //
 //	{
 //	    "webhook_id": "<doc_ID_here>"
 //	}
-func registerWebhook(handler *util.HandlerContext, cfg *util.Config, r *http.Request) {
+func registerWebhook(handler *util.HandlerContext, cfg *util.Config, r *http.Request, countryDB *util.CountryDataset) {
 	decoder := json.NewDecoder(r.Body)
-	webhook := Webhook{}
+	webhook := WebhookRegistration{}
+	webhookIsValid := true
+	st := http.StatusOK
 	if err := decoder.Decode(&webhook); err != nil {
+		webhookIsValid = false
+		st = http.StatusBadRequest
+	} else {
+		webhook.Country = strings.ToUpper(webhook.Country)
+		countryValid := countryDB.HasCountryInRecords(webhook.Country)
+		if !countryValid {
+			cca3, err := countryDB.GetCountryByName(webhook.Country)
+			if err == nil {
+				webhook.Country = cca3
+				countryValid = true
+			}
+		}
+		webhookIsValid =
+			(countryValid || webhook.Country == "") &&
+				validateURL(webhook.URL) && webhook.Calls != 0
+		if !webhookIsValid {
+			st = http.StatusUnprocessableEntity
+		}
+	}
+
+	if webhookIsValid {
+		newWebhookID, err := fsutils.AddDocument(cfg, cfg.WebhookCollection, &webhook)
+		if err != nil {
+			http.Error(*handler.Writer,
+				"Webhook is valid, but registration failed due to an unexpected error.",
+				http.StatusInternalServerError)
+			return
+		}
+		util.EncodeAndWriteResponse(handler.Writer, WebhookRegResp{newWebhookID})
+	} else {
 		errorMsg :=
-			"Malformed request body. Expected json format is:\n\n" +
+			"Malformed request body or non-valid values.\n Expected json format is:\n\n" +
 				"{\n" +
 				"    \"url\": \"https://localhost:8080/client/\",\n" +
 				"    \"country\": \"NOR\",\n" +
-				"    \"calls\": 5 <-- should trigger every five calls\n" +
-				"}\n"
-		http.Error(*handler.Writer, errorMsg, http.StatusBadRequest)
+				"    \"calls\": 5\n" +
+				"}\n\n" +
+				"Zero value for calls is not permitted. Must be 1 and above.\n" +
+				"Country must either be a valid cca3 code, the full country name, or an empty string.\n" +
+				"An empty country field will cause any country invocation to count up calls."
+		http.Error(*handler.Writer, errorMsg, st)
 		return
 	}
-	newWebhookID, err := fsutils.AddDocument(cfg, cfg.WebhookCollection, &webhook)
-	if err != nil {
-		http.Error(*handler.Writer, "Failed to register your webhook", http.StatusBadRequest)
-		return
-	}
-	util.EncodeAndWriteResponse(handler.Writer, WebhookRegResp{newWebhookID})
+}
+
+// validateURL validates the url of an incoming webhook registration.
+// currently it only checks that it's not an empty string.
+func validateURL(url string) bool {
+	return url != ""
 }
 
 // deleteWebhook takes a request on the form
 // Method: DELETE
 // Path: /energy/v1/notifications/{id},
 // and deletes a webhook if it is correctly identified.
-// TODO: Response is up to us. Should not expose any vital information.
 func deleteWebhook(handler *util.HandlerContext, cfg *util.Config, r *http.Request) {
 	segments := util.FragmentsFromPath(r.URL.Path, consts.NotificationPath)
 	if len(segments) != 1 {
@@ -144,7 +165,7 @@ func viewWebhooks(handler *util.HandlerContext, cfg *util.Config, r *http.Reques
 	segments := util.FragmentsFromPath(r.URL.Path, consts.NotificationPath)
 	if len(segments) == 1 {
 		id := segments[0]
-		webhookEntry := Webhook{}
+		webhookEntry := WebhookDisplay{}
 		err := fsutils.ReadDocumentGeneral(cfg, cfg.WebhookCollection, id, &webhookEntry)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
@@ -160,22 +181,23 @@ func viewWebhooks(handler *util.HandlerContext, cfg *util.Config, r *http.Reques
 			}
 			return
 		}
-		//TODO: Should it return an array for both branches for consistency?
+		webhookEntry.WebhookId = id
 		util.EncodeAndWriteResponse(handler.Writer, webhookEntry)
 		return
-	} else {
+	} else if len(segments) == 0 {
 		iter := cfg.FirestoreClient.Collection(cfg.WebhookCollection).Documents(*cfg.Ctx)
-		entries := make([]Webhook, 0)
+		entries := make([]WebhookDisplay, 0)
 		for {
 			doc, err := iter.Next()
 			if err == iterator.Done {
 				break
 			}
-			webhookEntry := Webhook{}
+			webhookEntry := WebhookDisplay{}
 			if err = doc.DataTo(&webhookEntry); err != nil {
 				log.Printf("Failed to unmarshal document %v: %v", doc.Ref.ID, err)
 				continue
 			}
+			webhookEntry.WebhookId = doc.Ref.ID
 			entries = append(entries, webhookEntry)
 		}
 		if len(entries) == 0 {
@@ -185,17 +207,10 @@ func viewWebhooks(handler *util.HandlerContext, cfg *util.Config, r *http.Reques
 			) // with DB. Document not existing returns no error.
 		}
 		util.EncodeAndWriteResponse(handler.Writer, entries)
+	} else {
+		http.Error(*handler.Writer,
+			"Invalid path.",
+			http.StatusBadRequest, // Error indicates a failure to communicate
+		) // with DB. Document not existing returns no error.
 	}
-}
-
-// webhookTrigger triggers whenever x amount of invocations on
-// a registered webhook country as occurred.
-//
-//	{
-//	   "webhook_id": "OIdksUDwveiwe",
-//	   "country": "Norway",
-//	   "calls": 10      <-- Should be some multiple of registered call frequency, i.e. 2*5 in this case.
-//	}
-func webhookTrigger(context *util.HandlerContext, cfg *util.Config, w http.ResponseWriter, r *http.Request) {
-
 }

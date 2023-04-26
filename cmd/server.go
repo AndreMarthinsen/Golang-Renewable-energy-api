@@ -6,9 +6,6 @@ import (
 	"Assignment2/handlers"
 	"Assignment2/internal/stubbing"
 	"Assignment2/util"
-	"context"
-	firebase "firebase.google.com/go"
-	"google.golang.org/api/option"
 	"log"
 	"net/http"
 	"os"
@@ -20,59 +17,59 @@ var wg sync.WaitGroup
 
 func main() {
 	defer wg.Wait()
+	var countryDataset util.CountryDataset
+	err := countryDataset.Initialize(consts.DataSetPath)
+	if err != nil {
+		log.Fatal("service startup: ", err)
+	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		log.Println("$PORT has been set. Default: " + consts.DefaultPort)
+		log.Println("main: $PORT has been set. Default: " + consts.DefaultPort)
 		port = consts.DefaultPort
 	}
+
+	config, err := util.SetUpServiceConfig(consts.ConfigPath, consts.CredentialsPath)
+	if err != nil {
+		log.Fatal("service startup: unable to utilize firebase: ", err)
+	}
+
+	// Stub server setup
 	stubStop := make(chan struct{})
-	if consts.Development { // WARNING: Ensure Development is set false for release.
+	if config.DevelopmentMode {
 		wg.Add(1)
-		go stubbing.RunSTUBServer(&wg, consts.StubPort, stubStop)
+		go stubbing.RunSTUBServer(&config, &wg, "./internal/assets/", consts.StubPort, stubStop)
 	}
 
-	ctx := context.Background()
-	opt := option.WithCredentialsFile("./cmd/sha.json")
-	app, err := firebase.NewApp(ctx, nil, opt)
-	if err != nil {
-		log.Fatal("failed to to create new app")
-	}
-
-	client, err := app.Firestore(ctx)
-	if err != nil {
-		log.Fatal("Failed to set up firestore client")
-	}
-
-	config := util.Config{
-		CachePushRate:     5 * time.Second,
-		CacheTimeLimit:    2 * time.Hour,
-		DebugMode:         true,
-		DevelopmentMode:   true,
-		Ctx:               &ctx,
-		FirestoreClient:   client,
-		CachingCollection: "Caches",
-		PrimaryCache:      "TestData",
-		WebhookCollection: "Webhooks",
-	}
-
-	requestChannel := make(chan caching.CacheRequest)
-	stopSignal := make(chan struct{})
-	doneSignal := make(chan struct{})
-
-	go caching.RunCacheWorker(&config, requestChannel, stopSignal, doneSignal)
-
-	defer func() { // TODO: Just use a wait group, if that's better
-		stopSignal <- struct{}{}
-		<-doneSignal
+	// Invocation worker setup
+	invocation := make(chan []string, 10)
+	invocationStop := make(chan struct{})
+	invocationDone := make(chan struct{})
+	go caching.InvocationWorker(&config, invocationStop, invocationDone, &countryDataset, invocation)
+	defer func() {
+		invocationStop <- struct{}{}
+		<-invocationDone
 	}()
-	notificationHandler := handlers.HandlerNotification(&config)
+	// Cache worker setup
+	requestChannel := make(chan caching.CacheRequest, 10)
+	cacheStop := make(chan struct{})
+	cacheDone := make(chan struct{})
 
-	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew())
+	go caching.RunCacheWorker(&config, requestChannel, cacheStop, cacheDone)
+
+	defer func() {
+		cacheStop <- struct{}{}
+		<-cacheDone
+	}()
+	notificationHandler := handlers.NotificationHandler(&config, &countryDataset)
+	serviceStartTime := time.Now()
+	statusHandler := handlers.HandlerStatus(&config, serviceStartTime)
+	http.HandleFunc("/energy/v1/usage", handlers.InfoHandler)
+	http.HandleFunc("/", handlers.InvalidPathHandler)
+	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(requestChannel, &countryDataset, invocation))
 	http.HandleFunc(consts.NotificationPath, notificationHandler)
-	http.HandleFunc(consts.StatusPath, handlers.HandlerStatus)
-
-	log.Println("Listening on port " + port)
+	http.HandleFunc(consts.StatusPath, statusHandler)
+	log.Println("main: service listening on port " + port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 	// stub service can now be stopped with: stubStop <- struct{}{}
 

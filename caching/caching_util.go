@@ -38,6 +38,7 @@ func localCacheInit(cfg *util.Config) (map[string]CacheEntry, error) {
 // updateLocalCache updates the local cache by attempting to retrieve data matching
 // any registered misses. Requests are either made to internal stubbing if development is
 // set in config, 3d party API if false.
+// Returns: True if cache has been updated, False otherwise.
 func updateLocalCache(cfg *util.Config, client *http.Client, cache *map[string]CacheEntry, misses []CacheMiss) bool {
 	joinedCountryCodes := getCodesStringFromMisses(misses)
 	var url string
@@ -51,6 +52,7 @@ func updateLocalCache(cfg *util.Config, client *http.Client, cache *map[string]C
 	request, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		log.Println("Cache Worker failed to create request to url " + url)
+		return false
 	}
 	response, err2 := client.Do(request)
 	if err2 != nil {

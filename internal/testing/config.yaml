@@ -1,0 +1,31 @@
+# Zero values for time settings will be overridden with setting defaults.
+time-intervals:
+  # time in seconds between each time updates to in-memory cache will be pushed to firebase DB
+  # default: 5
+  cache-push-rate: 5
+    # time in minutes deciding how old a country cache entry can be before it is discarded
+  # default: 60
+  cache-time-limit: 60
+    # time in seconds between each time registered webhooks are checked for trigger events.
+    # 10+ is recommended.
+  # default: 10
+  webhook-event-rate: 10
+
+# settings for turning on and off internal development/deployment settings
+deployment-variables:
+  # setting debug-mode true leads to extra logging of events. Leave off for deployment.
+  debug-mode: false
+    # setting development-mode true causes the service to utilize stubbing of third party APIs.
+  # WARNING: Set false for deployment, otherwise service will not function as intended.
+  development-mode: true
+
+# firebase paths and other variables
+firebase-variables:
+  # Name of the caching collection in the related firebase DB
+  caching-collection-name: "Caches"
+    # Name of the main cache document. If the document cannot be found, a new document will be
+  # created and the cache will be stored to it.
+  primary-cache-document-name: "TestData"
+  # Name of the webhook collection in the firestore DB.
+  webhook-collection-name: "Webhooks"
+

@@ -102,17 +102,3 @@ func CountDocuments(config *util.Config, collection string) (int, error) {
 	}
 	return count, nil
 }
-
-// TODO function to update a document
-/*
-// UpdateDocument updates the content of an existing document.
-func UpdateDocument(config *Config, collection, id string, newContent interface{}) {
-	content := fmt.Sprint(newContent)
-	_, err := config.FirestoreClient.Collection(collection).Doc(id).Update(*config.Ctx, []firestore.Update{
-		{
-			Path:  "hei",
-			Value: 4,
-		},
-	})
-}
-*/
