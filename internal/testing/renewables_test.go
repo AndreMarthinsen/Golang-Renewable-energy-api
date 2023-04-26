@@ -44,11 +44,14 @@ func TestRenewables(t *testing.T) {
 	cacheDone := make(chan struct{})
 	invocations := make(chan []string, 10)
 	invocationStop := make(chan struct{})
+	invocationDone := make(chan struct{})
 
 	t.Cleanup(func() {
 		cacheStop <- struct{}{}
 		stubStop <- struct{}{}
 		invocationStop <- struct{}{}
+		<-cacheDone
+		<-invocationDone
 	})
 	// Launch of worker threads
 	if config.DevelopmentMode {
@@ -56,7 +59,7 @@ func TestRenewables(t *testing.T) {
 		go stubbing.RunSTUBServer(&config, &wg, consts.StubPort, stubStop)
 	}
 	go caching.RunCacheWorker(&config, requests, cacheStop, cacheDone)
-	go caching.InvocationWorker(&config, invocationStop, &countryDataset, invocations)
+	go caching.InvocationWorker(&config, invocationStop, invocationDone, &countryDataset, invocations)
 
 	// Injection of dependencies into the handler
 	testHandler := handlers.HandlerRenew(requests, &countryDataset, invocations)
@@ -256,5 +259,4 @@ func TestRenewables(t *testing.T) {
 			tests[8].expected,
 			true,
 			0))
-
 }
