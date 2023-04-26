@@ -112,6 +112,7 @@ func (c *CountryDataset) GetFullName(cca3 string) (string, error) {
 func (c *CountryDataset) GetCountryByName(name string) (string, error) {
 	c.mutex.RLock()
 	for key, val := range c.data {
+		c.mutex.RUnlock()
 		if strings.ToUpper(name) == strings.ToUpper(val.Name) {
 			return key, nil
 		}
@@ -256,6 +257,7 @@ func (c *CountryDataset) CalculatePercentage(code string, startYear int, endYear
 			yearSpan++
 		}
 		percentage /= yearSpan
+		c.mutex.RUnlock()
 		return percentage, nil
 	}
 	c.mutex.RUnlock()
