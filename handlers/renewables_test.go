@@ -55,7 +55,7 @@ func TestRenewables(t *testing.T) {
 	// Launch of worker threads
 	if config.DevelopmentMode {
 		wg.Add(1)
-		go stubbing.RunSTUBServer(&config, &wg, consts.StubPort, stubStop)
+		go stubbing.RunSTUBServer(&config, &wg, "../internal/assets/", consts.StubPort, stubStop)
 	}
 	go caching.RunCacheWorker(&config, requests, cacheStop, cacheDone)
 	go caching.InvocationWorker(&config, invocationStop, invocationDone, &countryDataset, invocations)

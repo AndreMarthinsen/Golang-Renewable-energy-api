@@ -1,4 +1,4 @@
-package notifications
+package handlers
 
 // Webhook provides the json structure for the expected request
 // body of a webhook registration.
@@ -25,14 +25,6 @@ type WebhookRegistration struct {
 	Country string `firestore:"country"`
 	Calls   int32  `firestore:"calls"`
 	Count   int32  `firestore:"call_count"`
-}
-
-// WebhookTrigger contains the information to be sent to the url of a registered
-// webhook upon it being triggered.
-type WebhookTrigger struct {
-	WebhookId  string `json:"webhook_id"`
-	Country    string `json:"country"`
-	TotalCalls int32  `json:"calls"`
 }
 
 // WebhookRegResp provides the json structure of the response body

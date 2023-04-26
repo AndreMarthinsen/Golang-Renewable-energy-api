@@ -1,8 +1,7 @@
-package testing
+package handlers
 
 import (
 	"Assignment2/consts"
-	"Assignment2/handlers"
 	"Assignment2/internal/stubbing"
 	"Assignment2/util"
 	"encoding/json"
@@ -16,18 +15,18 @@ import (
 )
 
 func TestHandlerStats(t *testing.T) {
-	config, _ := util.SetUpServiceConfig(consts.ConfigPath, "./sha.json")
+	config, _ := util.SetUpServiceConfig(consts.ConfigPath, "../cmd/sha.json")
 	startTime := time.Now()
 	time.Sleep(1 * time.Second)
-	handler := handlers.HandlerStatus(&config, startTime)
+	handler := HandlerStatus(&config, startTime)
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	defer server.Close()
 
-	runStatusTest := func(expected handlers.ServiceStatus) func(*testing.T) {
+	runStatusTest := func(expected ServiceStatus) func(*testing.T) {
 		return func(t *testing.T) {
 			client := http.Client{}
 			defer client.CloseIdleConnections()
-			status := handlers.ServiceStatus{}
+			status := ServiceStatus{}
 			url := server.URL + consts.StatusPath
 			request, err := http.NewRequest(http.MethodGet, url, nil)
 			response, err := client.Do(request)
@@ -63,9 +62,9 @@ func TestHandlerStats(t *testing.T) {
 	wg := sync.WaitGroup{}
 	stop := make(chan struct{})
 	wg.Add(1)
-	go stubbing.RunSTUBServer(&config, &wg, consts.StubPort, stop)
+	go stubbing.RunSTUBServer(&config, &wg, "../internal/assets/", consts.StubPort, stop)
 	time.Sleep(time.Second)
-	expected := handlers.ServiceStatus{
+	expected := ServiceStatus{
 		CountriesApi:    "200 OK",
 		NotificationsDb: "200 OK",
 		Webhooks:        "",

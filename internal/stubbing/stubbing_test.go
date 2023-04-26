@@ -35,7 +35,7 @@ type country struct {
 // TestHttpStubbing tests the StubHandler of the stub service.
 func TestHttpStubbing(t *testing.T) {
 	ctx := context.Background()
-	opt := option.WithCredentialsFile(".../cmd/sha.json")
+	opt := option.WithCredentialsFile("../assets/sha.json")
 	app, err := firebase.NewApp(ctx, nil, opt)
 	if err != nil {
 		log.Fatal("failed to to create new app")

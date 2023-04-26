@@ -1,31 +1,33 @@
-package testing
+package handlers
 
 import (
 	"Assignment2/consts"
 	"Assignment2/fsutils"
-	"Assignment2/handlers/notifications"
 	"Assignment2/util"
 	"bytes"
 	"encoding/json"
 	"github.com/stretchr/testify/assert"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
 )
 
 func TestNotificationHandler(t *testing.T) {
-	config, _ := util.SetUpServiceConfig(consts.ConfigPath, "./sha.json")
+	config, _ := util.SetUpServiceConfig(consts.ConfigPath, "../cmd/sha.json")
 	var countryDB util.CountryDataset
-	err := countryDB.Initialize(consts.DataSetPath)
+	log.Println(os.Getwd())
+	err := countryDB.Initialize("../internal/assets/renewable-share-energy.csv")
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	handler := notifications.HandlerNotification(&config, &countryDB)
+	handler := NotificationHandler(&config, &countryDB)
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	defer server.Close()
 	client := http.Client{}
@@ -52,7 +54,7 @@ func TestNotificationHandler(t *testing.T) {
 	)
 
 	// Sending correct body
-	testWebhook := notifications.Webhook{
+	testWebhook := Webhook{
 		URL:     "https://tullogtoys.crumb",
 		Country: "NOR",
 		Calls:   5,
@@ -72,7 +74,7 @@ func TestNotificationHandler(t *testing.T) {
 		response.Status,
 	)
 
-	webhookId := notifications.WebhookRegResp{}
+	webhookId := WebhookRegResp{}
 	decoder := json.NewDecoder(response.Body)
 	err = decoder.Decode(&webhookId)
 	if err != nil {
@@ -84,7 +86,7 @@ func TestNotificationHandler(t *testing.T) {
 		t.Error(err)
 	}
 
-	webhookLookup := notifications.Webhook{}
+	webhookLookup := Webhook{}
 	decoder = json.NewDecoder(response.Body)
 	err = decoder.Decode(&webhookLookup)
 	if err != nil {
@@ -120,7 +122,7 @@ func TestNotificationHandler(t *testing.T) {
 	}
 
 	// Webhook should be deleted, which should cause decoding to fail.
-	webhookLookup = notifications.Webhook{}
+	webhookLookup = Webhook{}
 	decoder = json.NewDecoder(response.Body)
 	err = decoder.Decode(&webhookLookup)
 	if err == nil {
@@ -140,7 +142,7 @@ func TestNotificationHandler(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	webhooks := make([]notifications.Webhook, 0)
+	webhooks := make([]Webhook, 0)
 	decoder = json.NewDecoder(response.Body)
 	err = decoder.Decode(&webhooks)
 	if err != nil {

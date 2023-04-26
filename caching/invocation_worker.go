@@ -1,7 +1,6 @@
 package caching
 
 import (
-	"Assignment2/handlers/notifications"
 	"Assignment2/util"
 	"bytes"
 	"cloud.google.com/go/firestore"
@@ -17,7 +16,27 @@ import (
 // with the fields of the document.
 type webhookCheck struct {
 	ID   string
-	Body notifications.WebhookRegistration
+	Body webhookRegistration
+}
+
+// WebhookRegistration provides the document structure of a
+// webhook registration. Count is the invocation
+// count for the country since the registration of the webhook.
+//
+// WARNING: Count MUST be updated in DB on an invocation check.
+type webhookRegistration struct {
+	URL     string `firestore:"url"`
+	Country string `firestore:"country"`
+	Calls   int32  `firestore:"calls"`
+	Count   int32  `firestore:"call_count"`
+}
+
+// WebhookTrigger contains the information to be sent to the url of a registered
+// webhook upon it being triggered.
+type webhookTrigger struct {
+	WebhookId  string `json:"webhook_id"`
+	Country    string `json:"country"`
+	TotalCalls int32  `json:"calls"`
 }
 
 // InvocationWorker receives updates from endpoint handlers and updates
@@ -130,7 +149,7 @@ func updateCallCountsAndGetEvents(iter *firestore.DocumentIterator, bulkOperatio
 		if err != nil {
 			return err, webhooksToCheck
 		}
-		webhook := notifications.WebhookRegistration{}
+		webhook := webhookRegistration{}
 		if err = doc.DataTo(&webhook); err != nil {
 			return err, webhooksToCheck
 		}
@@ -166,7 +185,7 @@ func doWebhookEvents(cfg *util.Config, client *http.Client, webhook webhookCheck
 			if err != nil {
 				log.Println("webhook worker: ", err)
 			}
-			message := notifications.WebhookTrigger{
+			message := webhookTrigger{
 				WebhookId:  webhook.ID,
 				Country:    countryName,
 				TotalCalls: previousTriggers*webhook.Body.Calls + int32(j+1)*webhook.Body.Calls,

@@ -1,4 +1,4 @@
-package notifications
+package handlers
 
 import (
 	"Assignment2/consts"
@@ -14,8 +14,8 @@ import (
 	"time"
 )
 
-// HandlerNotification The handler for the notification endpoint
-func HandlerNotification(cfg *util.Config, countryDB *util.CountryDataset) func(w http.ResponseWriter, r *http.Request) {
+// NotificationHandler The handler for the notification endpoint
+func NotificationHandler(cfg *util.Config, countryDB *util.CountryDataset) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("content-type", "application/json")
 		client := &http.Client{Timeout: 10 * time.Second}

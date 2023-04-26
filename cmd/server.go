@@ -4,7 +4,6 @@ import (
 	"Assignment2/caching"
 	"Assignment2/consts"
 	"Assignment2/handlers"
-	"Assignment2/handlers/notifications"
 	"Assignment2/internal/stubbing"
 	"Assignment2/util"
 	"log"
@@ -62,7 +61,7 @@ func main() {
 		cacheStop <- struct{}{}
 		<-cacheDone
 	}()
-	notificationHandler := notifications.HandlerNotification(&config, &countryDataset)
+	notificationHandler := handlers.NotificationHandler(&config, &countryDataset)
 	serviceStartTime := time.Now()
 	statusHandler := handlers.HandlerStatus(&config, serviceStartTime)
 	http.HandleFunc("/energy/v1/usage", handlers.InfoHandler)
