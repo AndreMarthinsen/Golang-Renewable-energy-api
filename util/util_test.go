@@ -1,8 +1,7 @@
-package testing
+package util
 
 import (
 	"Assignment2/consts"
-	"Assignment2/util"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
@@ -10,32 +9,32 @@ import (
 )
 
 func TestConfigInitialize(t *testing.T) {
-	var testConfig util.Config
+	var testConfig Config
 
 	testConfig.InitializeWithDefaults()
-	defaultConfig := util.Config{
-		CachePushRate:     util.SettingsCachePushRate,
-		CacheTimeLimit:    util.SettingsCacheTimeLimit,
-		DebugMode:         util.SettingsDebugMode,
-		DevelopmentMode:   util.SettingsDevelopmentMode,
-		CachingCollection: util.SettingsCachingCollection,
-		PrimaryCache:      util.SettingsPrimaryCache,
-		WebhookCollection: util.SettingsWebhookCollection,
-		WebhookEventRate:  util.SettingsWebhookEventRate,
+	defaultConfig := Config{
+		CachePushRate:     SettingsCachePushRate,
+		CacheTimeLimit:    SettingsCacheTimeLimit,
+		DebugMode:         SettingsDebugMode,
+		DevelopmentMode:   SettingsDevelopmentMode,
+		CachingCollection: SettingsCachingCollection,
+		PrimaryCache:      SettingsPrimaryCache,
+		WebhookCollection: SettingsWebhookCollection,
+		WebhookEventRate:  SettingsWebhookEventRate,
 	}
 	assert.Equal(t, defaultConfig, testConfig)
-	assert.Nil(t, testConfig.Initialize("./config.yaml"))
+	assert.Nil(t, testConfig.Initialize("../config/config.yaml"))
 	assert.Error(t, testConfig.Initialize("/invalid_path"))
 }
 
 func TestStatusToText(t *testing.T) {
-	assert.Equal(t, "200 OK", util.StatusToString(http.StatusOK))
-	assert.Equal(t, "404 Not Found", util.StatusToString(http.StatusNotFound))
-	assert.Equal(t, "", util.StatusToString(3000))
+	assert.Equal(t, "200 OK", StatusToString(http.StatusOK))
+	assert.Equal(t, "404 Not Found", StatusToString(http.StatusNotFound))
+	assert.Equal(t, "", StatusToString(3000))
 }
 
 func TestSetUpServiceConfig(t *testing.T) {
-	panicTest := func(cfg *util.Config) func() {
+	panicTest := func(cfg *Config) func() {
 		return func() {
 			// panic on nil pointer dereference
 			err := cfg.FirestoreClient.Close()
@@ -45,39 +44,39 @@ func TestSetUpServiceConfig(t *testing.T) {
 		}
 	}
 
-	config, err := util.SetUpServiceConfig("/invalid/path", "./sha.json")
+	config, err := SetUpServiceConfig("/invalid/path", "../cmd/sha.json")
 	assert.Nil(t, err)
 	assert.NotPanics(t, panicTest(&config), config)
 
-	config, err = util.SetUpServiceConfig(consts.ConfigPath, "./invalid_creds.json")
+	config, err = SetUpServiceConfig("."+consts.ConfigPath, "./invalid_creds.json")
 	assert.Error(t, err)
 	assert.Panics(t, panicTest(&config), config)
 
-	config, err = util.SetUpServiceConfig(consts.ConfigPath, "./sha.json")
+	config, err = SetUpServiceConfig("."+consts.ConfigPath, "../cmd/sha.json")
 	assert.Nil(t, err)
 	assert.NotPanics(t, panicTest(&config))
 
 }
 
 func TestMax(t *testing.T) {
-	assert.Equal(t, 5, util.Max(5, 0))
-	assert.Equal(t, 0, util.Max(-5, 0))
-	assert.Equal(t, 0.0, util.Max(0.0, 0.0))
-	assert.Equal(t, 'b', util.Max('b', 'a'))
+	assert.Equal(t, 5, Max(5, 0))
+	assert.Equal(t, 0, Max(-5, 0))
+	assert.Equal(t, 0.0, Max(0.0, 0.0))
+	assert.Equal(t, 'b', Max('b', 'a'))
 }
 
 func TestMin(t *testing.T) {
-	assert.Equal(t, 0, util.Min(5, 0))
-	assert.Equal(t, -5, util.Min(-5, 0))
-	assert.Equal(t, 0.0, util.Min(0.0, 0.0))
-	assert.Equal(t, 'a', util.Min('b', 'a'))
+	assert.Equal(t, 0, Min(5, 0))
+	assert.Equal(t, -5, Min(-5, 0))
+	assert.Equal(t, 0.0, Min(0.0, 0.0))
+	assert.Equal(t, 'a', Min('b', 'a'))
 }
 
 // TestFragmentsFromPath test that verifies parsing of an url string into a set of segments.
 func TestFragmentsFromPath(t *testing.T) {
 	runFragmentsTest := func(path string, rootPath string, expected []string) func(t *testing.T) {
 		return func(t *testing.T) {
-			processed := util.FragmentsFromPath(path, rootPath)
+			processed := FragmentsFromPath(path, rootPath)
 			if len(processed) != len(expected) {
 				t.Error("Expected \n", expected, "\nbut got: \n", processed)
 			}
@@ -138,7 +137,7 @@ func TestGetDomainStatus(t *testing.T) {
 	// defines a slice of test structs before running the above function on each struct.
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			st, _ := util.GetDomainStatus(tc.URL)
+			st, _ := GetDomainStatus(tc.URL)
 			if tc.expected != st {
 				t.Errorf("expected status %v but got %v", tc.expected, st)
 			}
@@ -150,7 +149,7 @@ func TestEncodeAndWriteResponse(t *testing.T) {
 	runEncodeTest := func(expected int, object interface{}) func(t *testing.T) {
 		return func(t *testing.T) {
 			handler := func(w http.ResponseWriter) {
-				util.EncodeAndWriteResponse(&w, object)
+				EncodeAndWriteResponse(&w, object)
 			}
 			w := httptest.NewRecorder()
 			handler(w)
@@ -181,8 +180,8 @@ func TestEncodeAndWriteResponse(t *testing.T) {
 }
 
 func TestHasCountryInRecords(t *testing.T) {
-	var dataset util.CountryDataset
-	err := dataset.Initialize(consts.DataSetPath)
+	var dataset CountryDataset
+	err := dataset.Initialize("." + consts.DataSetPath)
 	if err != nil {
 		t.Error(err)
 	}
