@@ -243,7 +243,7 @@ func parseHistoricQuery(r *http.Request, dataset *util.CountryDataset, code stri
 			if end != 0 {
 				//http.Error(w, "Bad request, begin must be smaller than end", http.StatusBadRequest)
 				return 0, 0, sortByValue, errors.New("bad request, begin must be smaller than end" +
-					" or begin set higher than last year in record")
+					" or span of years indicated by begin/end is not in record")
 			}
 		} //if no errors have been found, the parsed values are returned
 		return begin, end, sortByValue, nil
