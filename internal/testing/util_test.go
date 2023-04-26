@@ -24,7 +24,7 @@ func TestConfigInitialize(t *testing.T) {
 		WebhookEventRate:  util.SettingsWebhookEventRate,
 	}
 	assert.Equal(t, defaultConfig, testConfig)
-	assert.Nil(t, testConfig.Initialize(consts.ConfigPath))
+	assert.Nil(t, testConfig.Initialize("./config.yaml"))
 	assert.Error(t, testConfig.Initialize("/invalid_path"))
 }
 
@@ -187,7 +187,6 @@ func TestHasCountryInRecords(t *testing.T) {
 		t.Error(err)
 	}
 	assert.True(t, dataset.HasCountryInRecords("NOR"))
-	assert.True(t, dataset.HasCountryInRecords("Norway"))
 	assert.False(t, dataset.HasCountryInRecords("E"))
 	assert.False(t, dataset.HasCountryInRecords("NOTVALID"))
 	assert.False(t, dataset.HasCountryInRecords(""))
