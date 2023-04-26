@@ -18,8 +18,14 @@ import (
 
 func TestNotificationHandler(t *testing.T) {
 	config, _ := util.SetUpServiceConfig(consts.ConfigPath, "./sha.json")
+	var countryDB util.CountryDataset
+	err := countryDB.Initialize(consts.DataSetPath)
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
-	handler := notifications.HandlerNotification(&config)
+	handler := notifications.HandlerNotification(&config, &countryDB)
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	defer server.Close()
 	client := http.Client{}
