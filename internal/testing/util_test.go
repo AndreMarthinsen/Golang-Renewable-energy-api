@@ -180,6 +180,19 @@ func TestEncodeAndWriteResponse(t *testing.T) {
 
 }
 
+func TestHasCountryInRecords(t *testing.T) {
+	var dataset util.CountryDataset
+	err := dataset.Initialize(consts.DataSetPath)
+	if err != nil {
+		t.Error(err)
+	}
+	assert.True(t, dataset.HasCountryInRecords("NOR"))
+	assert.True(t, dataset.HasCountryInRecords("Norway"))
+	assert.False(t, dataset.HasCountryInRecords("E"))
+	assert.False(t, dataset.HasCountryInRecords("NOTVALID"))
+	assert.False(t, dataset.HasCountryInRecords(""))
+}
+
 /*
 // HandleOutgoing takes a HandlerContext, request method, target url and a reader object along with a pointer
 // to an object to be used for decoding.
