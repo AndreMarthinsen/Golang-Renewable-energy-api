@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -121,4 +122,19 @@ func TestHttpStubbing(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, runStubHandlerTest(tt.queries, tt.expected))
 	}
+}
+
+func TestRunSTUBServer(t *testing.T) {
+	var config util.Config
+	wg := sync.WaitGroup{}
+	err := config.Initialize("../assets/config.yaml")
+	if err != nil {
+		t.Error(err)
+	}
+	stubStop := make(chan struct{})
+	if config.DevelopmentMode {
+		wg.Add(1)
+		go RunSTUBServer(&config, &wg, "./internal/assets/", consts.StubPort, stubStop)
+	}
+	stubStop <- struct{}{}
 }

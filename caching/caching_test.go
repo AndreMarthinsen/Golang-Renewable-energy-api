@@ -100,3 +100,31 @@ func TestRunCacheWorker(t *testing.T) {
 	time.Sleep(config.CachePushRate * 2)
 
 }
+
+func TestInvocationWorker(t *testing.T) {
+	config, err := util.SetUpServiceConfig("../config/config.yaml", "../cmd/sha.json")
+	if err != nil {
+		t.Error(err)
+	}
+
+	var countryDB util.CountryDataset
+	err = countryDB.Initialize("../internal/assets/renewable-share-energy.csv")
+	if err != nil {
+		t.Error(err)
+	}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	invocations := make(chan []string, 10)
+
+	go InvocationWorker(&config, stop, done, &countryDB, invocations)
+	countries := []string{"NOR", "SWE", "RUS", "GER"}
+	invocations <- countries
+	log.Println("sleeping")
+	//time.Sleep(config.WebhookEventRate)
+	log.Println("done sleeping")
+	stop <- struct{}{}
+	log.Println("awaiting done signal")
+	<-done
+	log.Println("past the done signal")
+
+}
