@@ -59,7 +59,7 @@ func TestRenewables(t *testing.T) {
 	go caching.InvocationWorker(&config, invocationStop, &countryDataset, invocations)
 
 	// Injection of dependencies into the handler
-	testHandler := handlers.HandlerRenew(&config, requests, &countryDataset, invocations)
+	testHandler := handlers.HandlerRenew(requests, &countryDataset, invocations)
 
 	runHandlerTest := func(wg *sync.WaitGroup, query string, expectedCode string, routine bool, expectedLength int) func(*testing.T) {
 		return func(t *testing.T) {
