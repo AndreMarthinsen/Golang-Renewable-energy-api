@@ -10,7 +10,7 @@ const CountryFilteringByCode = "?fields=name,languages,maps,borders&codes="
 
 // Internal paths
 
-const ConfigPath = "./config.yaml"
+const ConfigPath = "./config/config.yaml"
 
 const DataSetPath = "./internal/assets/renewable-share-energy.csv"
 

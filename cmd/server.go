@@ -62,7 +62,7 @@ func main() {
 	serviceStartTime := time.Now()
 	statusHandler := handlers.HandlerStatus(&config, serviceStartTime)
 
-	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(&config, requestChannel, &countryDataset, invocation))
+	http.HandleFunc(consts.RenewablesPath, handlers.HandlerRenew(requestChannel, &countryDataset, invocation))
 	http.HandleFunc(consts.NotificationPath, notificationHandler)
 	http.HandleFunc(consts.StatusPath, statusHandler)
 

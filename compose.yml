@@ -11,7 +11,8 @@ services:
     volumes:
       # credentials:
       # mounts as original cmd directory
-      - /home/ubuntu/.secret:/cmd/:ro
+      - ~/.secret:/cmd/:ro
+      - ./config:/config/:ro
     
     # port mapping (remote:local)
     ports:

@@ -113,6 +113,7 @@ func (c *CountryDataset) GetCountryByName(name string) (string, error) {
 	c.mutex.RLock()
 	for key, val := range c.data {
 		if strings.ToUpper(name) == strings.ToUpper(val.Name) {
+			c.mutex.RUnlock()
 			return key, nil
 		}
 	}
@@ -256,6 +257,7 @@ func (c *CountryDataset) CalculatePercentage(code string, startYear int, endYear
 			yearSpan++
 		}
 		percentage /= yearSpan
+		c.mutex.RUnlock()
 		return percentage, nil
 	}
 	c.mutex.RUnlock()
