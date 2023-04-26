@@ -45,20 +45,24 @@ func main() {
 	// Invocation worker setup
 	invocation := make(chan []string, 10)
 	invocationStop := make(chan struct{})
-	go caching.InvocationWorker(&config, invocationStop, &countryDataset, invocation)
-
+	invocationDone := make(chan struct{})
+	go caching.InvocationWorker(&config, invocationStop, invocationDone, &countryDataset, invocation)
+	defer func() {
+		invocationStop <- struct{}{}
+		<-invocationDone
+	}()
 	// Cache worker setup
 	requestChannel := make(chan caching.CacheRequest, 10)
-	stopSignal := make(chan struct{})
-	doneSignal := make(chan struct{})
+	cacheStop := make(chan struct{})
+	cacheDone := make(chan struct{})
 
-	go caching.RunCacheWorker(&config, requestChannel, stopSignal, doneSignal)
+	go caching.RunCacheWorker(&config, requestChannel, cacheStop, cacheDone)
 
-	defer func() { // TODO: Just use a wait group, if that's better
-		stopSignal <- struct{}{}
-		<-doneSignal
+	defer func() {
+		cacheStop <- struct{}{}
+		<-cacheDone
 	}()
-	notificationHandler := notifications.HandlerNotification(&config)
+	notificationHandler := notifications.HandlerNotification(&config, &countryDataset)
 	serviceStartTime := time.Now()
 	statusHandler := handlers.HandlerStatus(&config, serviceStartTime)
 
