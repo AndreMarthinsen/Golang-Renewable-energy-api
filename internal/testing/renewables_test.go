@@ -260,3 +260,51 @@ func TestRenewables(t *testing.T) {
 			true,
 			0))
 }
+
+func TestSortSlice(t *testing.T) {
+	var dataset util.CountryDataset
+	err := dataset.Initialize(consts.DataSetPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	runTest := func(stats []util.RenewableStatistics, firstExpected util.RenewableStatistics) func(t *testing.T) {
+		return func(t *testing.T) {
+			stats = handlers.SortStatistics(stats)
+			if stats[0] != firstExpected {
+				t.Errorf("Unexpected sorted result, got #{stats[0]} but expected #{firstExpected}")
+			}
+		}
+	}
+
+	testCases := []struct {
+		name          string
+		statistics    []util.RenewableStatistics
+		firstExpected util.RenewableStatistics
+	}{
+		{name: "Test for 1960s Norway statiscs",
+			statistics: []util.RenewableStatistics{
+				{"Norway", "NOR", 1967, 60.32},
+				{"Norway", "NOR", 1968, 61.132},
+				{"Norway", "NOR", 1969, 62.31},
+			},
+			firstExpected: util.RenewableStatistics{"Norway", "NOR", 1967, 60.32}},
+		{name: "Test for 1970s Norway statiscs",
+			statistics: []util.RenewableStatistics{
+				{"Norway", "NOR", 1972, 59.81},
+				{"Norway", "NOR", 1974, 58.82},
+				{"Norway", "NOR", 1978, 62.01},
+			},
+			firstExpected: util.RenewableStatistics{"Norway", "NOR", 1974, 58.82}},
+		{name: "Test for 1990s Sweden statiscs",
+			statistics: []util.RenewableStatistics{
+				{"Sweden", "SWE", 1994, 48.15},
+				{"Sweden", "SWE", 1996, 50.12},
+				{"Sweden", "SWE", 1998, 47.01},
+			},
+			firstExpected: util.RenewableStatistics{"Sweden", "SWE", 1998, 47.01}},
+	}
+	for _, test := range testCases {
+		t.Run(test.name, runTest(test.statistics, test.firstExpected))
+	}
+}
