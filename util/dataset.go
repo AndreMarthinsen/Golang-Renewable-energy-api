@@ -81,7 +81,7 @@ func (c *CountryDataset) Initialize(path string) error {
 
 // GetStatisticsRange returns a list of YearAndPercentage from 'year' to 'lastYear'.
 func (c *CountryDataset) GetStatisticsRange(country string, year int, lastYear int) []RenewableStatistics {
-	c.mutex.RLock() //TODO: Allow many readers? How?
+	c.mutex.RLock()
 	var years []RenewableStatistics
 	for year <= lastYear {
 		if percentage, ok := c.data[country].YearlyPercentages[year]; ok {
