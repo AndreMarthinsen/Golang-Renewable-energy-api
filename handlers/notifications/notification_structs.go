@@ -8,6 +8,13 @@ type Webhook struct {
 	Calls   int32  `json:"calls"`
 }
 
+type WebhookDisplay struct {
+	WebhookId string `json:"webhook_id"`
+	URL       string `json:"url"`
+	Country   string `json:"country"`
+	Calls     int32  `json:"calls"`
+}
+
 // WebhookRegistration provides the document structure of a
 // webhook registration. Count is the invocation
 // count for the country since the registration of the webhook.

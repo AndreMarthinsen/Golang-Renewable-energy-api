@@ -165,7 +165,7 @@ func viewWebhooks(handler *util.HandlerContext, cfg *util.Config, r *http.Reques
 	segments := util.FragmentsFromPath(r.URL.Path, consts.NotificationPath)
 	if len(segments) == 1 {
 		id := segments[0]
-		webhookEntry := Webhook{}
+		webhookEntry := WebhookDisplay{}
 		err := fsutils.ReadDocumentGeneral(cfg, cfg.WebhookCollection, id, &webhookEntry)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
@@ -181,21 +181,23 @@ func viewWebhooks(handler *util.HandlerContext, cfg *util.Config, r *http.Reques
 			}
 			return
 		}
+		webhookEntry.WebhookId = id
 		util.EncodeAndWriteResponse(handler.Writer, webhookEntry)
 		return
 	} else if len(segments) == 0 {
 		iter := cfg.FirestoreClient.Collection(cfg.WebhookCollection).Documents(*cfg.Ctx)
-		entries := make([]Webhook, 0)
+		entries := make([]WebhookDisplay, 0)
 		for {
 			doc, err := iter.Next()
 			if err == iterator.Done {
 				break
 			}
-			webhookEntry := Webhook{}
+			webhookEntry := WebhookDisplay{}
 			if err = doc.DataTo(&webhookEntry); err != nil {
 				log.Printf("Failed to unmarshal document %v: %v", doc.Ref.ID, err)
 				continue
 			}
+			webhookEntry.WebhookId = doc.Ref.ID
 			entries = append(entries, webhookEntry)
 		}
 		if len(entries) == 0 {
